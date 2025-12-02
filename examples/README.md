@@ -7,28 +7,44 @@ that integrate with the FastAPI backend for TradingView Lightweight Charts.
 
 ```
 examples/
-├── quick-start/          # Minimal examples to get started
-│   ├── BasicChart.vue    # Simple chart component usage
-│   └── App.vue           # Complete app setup
+├── quick-start/           # Minimal examples to get started
+│   ├── BasicChart.vue     # Simple chart component usage
+│   └── App.vue            # Complete app setup
 │
-├── composables/          # Using the Vue composables
-│   ├── UseChartApi.vue   # REST API integration
-│   ├── UseWebSocket.vue  # Real-time updates via WebSocket
+├── chart-types/           # Different chart visualizations
+│   ├── CandlestickChart.vue # OHLC candlestick charts
+│   ├── AreaChart.vue      # Area charts with gradients
+│   ├── BarChart.vue       # OHLC bar charts
+│   ├── BaselineChart.vue  # Baseline comparison charts
+│   ├── HistogramChart.vue # Volume histograms
+│   └── LineChart.vue      # Line charts with multiple series
+│
+├── trading-features/      # Trading-specific visualizations
+│   ├── MarkersExample.vue # Buy/sell markers and signals
+│   ├── TradesVisualization.vue # Trade entry/exit points with P&L
+│   └── PriceLinesAnnotations.vue # Support/resistance levels
+│
+├── custom-styling/        # Themes and styling
+│   └── ThemesExample.vue  # Light/dark themes and custom colors
+│
+├── composables/           # Using the Vue composables
+│   ├── UseChartApi.vue    # REST API integration
+│   ├── UseWebSocket.vue   # Real-time updates via WebSocket
 │   └── UseLazyLoading.vue # Infinite history loading
 │
-├── components/           # Component patterns
-│   ├── MultiPane.vue     # Multi-pane chart layout
-│   ├── ChartWithLegend.vue # Chart with custom legend
-│   └── LinkedCharts.vue  # Synchronized charts
+├── components/            # Component patterns
+│   ├── MultiPane.vue      # Multi-pane chart layout
+│   ├── ChartWithLegend.vue # Interactive custom legend
+│   └── LinkedCharts.vue   # Synchronized time scales
 │
-├── real-time/            # Real-time data patterns
-│   ├── StreamingData.vue # WebSocket streaming updates
-│   └── LiveTrades.vue    # Real-time trade visualization
+├── real-time/             # Real-time data patterns
+│   ├── StreamingData.vue  # WebSocket streaming updates
+│   └── LiveTrades.vue     # Real-time trade visualization
 │
-└── advanced/             # Advanced patterns
-    ├── LazyHistory.vue   # Infinite scroll with lazy loading
-    ├── SmartChunking.vue # Large dataset handling
-    └── Dashboard.vue     # Multi-chart dashboard
+└── advanced/              # Advanced patterns
+    ├── LazyHistory.vue    # Infinite scroll with lazy loading
+    ├── SmartChunking.vue  # Large dataset auto-chunking
+    └── Dashboard.vue      # Multi-chart dashboard
 ```
 
 ## Prerequisites
@@ -76,6 +92,57 @@ onMounted(async () => {
   <LightweightChart v-else :data="chartData" />
 </template>
 ```
+
+## Examples by Category
+
+### 📊 Chart Types
+Learn about different chart visualizations:
+
+- **[CandlestickChart.vue](chart-types/CandlestickChart.vue)** - Traditional OHLC candlestick charts
+- **[AreaChart.vue](chart-types/AreaChart.vue)** - Area charts with gradient fills
+- **[BarChart.vue](chart-types/BarChart.vue)** - OHLC bar charts
+- **[BaselineChart.vue](chart-types/BaselineChart.vue)** - Baseline charts for profit/loss visualization
+- **[HistogramChart.vue](chart-types/HistogramChart.vue)** - Volume histograms with custom colors
+- **[LineChart.vue](chart-types/LineChart.vue)** - Multi-series line charts
+
+### 📈 Trading Features
+Trading-specific visualizations and tools:
+
+- **[MarkersExample.vue](trading-features/MarkersExample.vue)** - Chart markers for buy/sell signals
+- **[TradesVisualization.vue](trading-features/TradesVisualization.vue)** - Visualize trades with entry/exit points
+- **[PriceLinesAnnotations.vue](trading-features/PriceLinesAnnotations.vue)** - Support/resistance levels and price targets
+
+### 🎨 Custom Styling
+Themes and appearance customization:
+
+- **[ThemesExample.vue](custom-styling/ThemesExample.vue)** - Light/dark themes and custom color schemes
+
+### 🔌 Composables
+Vue composables for API integration:
+
+- **[UseChartApi.vue](composables/UseChartApi.vue)** - REST API integration for chart data
+- **[UseWebSocket.vue](composables/UseWebSocket.vue)** - Real-time updates via WebSocket
+- **[UseLazyLoading.vue](composables/UseLazyLoading.vue)** - Infinite scroll history loading
+
+### 🧩 Components
+Advanced component patterns:
+
+- **[MultiPane.vue](components/MultiPane.vue)** - Multi-pane charts (price + volume + indicators)
+- **[ChartWithLegend.vue](components/ChartWithLegend.vue)** - Interactive custom legend with series toggling
+- **[LinkedCharts.vue](components/LinkedCharts.vue)** - Synchronized charts with linked time scales
+
+### ⚡ Real-time
+Live data streaming patterns:
+
+- **[StreamingData.vue](real-time/StreamingData.vue)** - WebSocket streaming data updates
+- **[LiveTrades.vue](real-time/LiveTrades.vue)** - Real-time trade visualization
+
+### 🚀 Advanced
+Advanced features and optimizations:
+
+- **[LazyHistory.vue](advanced/LazyHistory.vue)** - Infinite scroll with lazy loading
+- **[SmartChunking.vue](advanced/SmartChunking.vue)** - Automatic chunking for large datasets
+- **[Dashboard.vue](advanced/Dashboard.vue)** - Multi-chart dashboard
 
 ## Running Examples
 
