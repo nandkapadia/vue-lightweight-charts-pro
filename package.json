@@ -1,6 +1,6 @@
 {
   "name": "@lightweight-charts-pro/vue3",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "description": "Vue 3 components for TradingView Lightweight Charts with backend API integration",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -31,8 +31,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nandkapadia/streamlit-lightweight-charts-pro.git",
-    "directory": "packages/vue3"
+    "url": "https://github.com/nandkapadia/vue-lightweight-charts-pro.git"
   },
   "keywords": [
     "vue3",
@@ -49,7 +48,7 @@
     "vue": "^3.4.0"
   },
   "optionalDependencies": {
-    "@lightweight-charts-pro/core": "file:../core"
+    "@lightweight-charts-pro/core": "file:../lightweight-charts-pro-frontend"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
