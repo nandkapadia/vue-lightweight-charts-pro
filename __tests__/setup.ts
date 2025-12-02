@@ -5,26 +5,79 @@
 import { vi } from 'vitest';
 
 // Mock lightweight-charts
-vi.mock('lightweight-charts', () => ({
-  createChart: vi.fn(() => ({
-    addSeries: vi.fn(() => ({
-      setData: vi.fn(),
-      update: vi.fn(),
+vi.mock('lightweight-charts', () => {
+  // Create a mock series with all common methods
+  const createMockSeries = () => ({
+    setData: vi.fn(),
+    update: vi.fn(),
+    applyOptions: vi.fn(),
+    setMarkers: vi.fn(),
+    markers: vi.fn(() => []),
+    data: vi.fn(() => []),
+    createPriceLine: vi.fn(() => ({
+      options: vi.fn(),
       applyOptions: vi.fn(),
     })),
-    removeSeries: vi.fn(),
-    remove: vi.fn(),
-    resize: vi.fn(),
-    applyOptions: vi.fn(),
-    timeScale: vi.fn(() => ({
-      fitContent: vi.fn(),
-      subscribeVisibleLogicalRangeChange: vi.fn(),
-      unsubscribeVisibleLogicalRangeChange: vi.fn(),
+    removePriceLine: vi.fn(),
+    priceScale: vi.fn(() => ({
+      applyOptions: vi.fn(),
+      options: vi.fn(),
+      coordinateToPrice: vi.fn((coord: number) => 100 + coord / 10),
     })),
-    subscribeCrosshairMove: vi.fn(),
-    subscribeClick: vi.fn(),
-  })),
-}));
+  });
+
+  return {
+    createChart: vi.fn(() => ({
+      // Generic series method (for backward compatibility)
+      addSeries: vi.fn(() => createMockSeries()),
+
+      // Specific series methods used in examples
+      addCandlestickSeries: vi.fn(() => createMockSeries()),
+      addLineSeries: vi.fn(() => createMockSeries()),
+      addAreaSeries: vi.fn(() => createMockSeries()),
+      addBarSeries: vi.fn(() => createMockSeries()),
+      addHistogramSeries: vi.fn(() => createMockSeries()),
+      addBaselineSeries: vi.fn(() => createMockSeries()),
+
+      // Chart methods
+      removeSeries: vi.fn(),
+      remove: vi.fn(),
+      resize: vi.fn(),
+      applyOptions: vi.fn(),
+      series: vi.fn(() => [createMockSeries()]),
+
+      // Time scale
+      timeScale: vi.fn(() => ({
+        fitContent: vi.fn(),
+        subscribeVisibleLogicalRangeChange: vi.fn(),
+        unsubscribeVisibleLogicalRangeChange: vi.fn(),
+        subscribeVisibleTimeRangeChange: vi.fn(),
+        unsubscribeVisibleTimeRangeChange: vi.fn(),
+        setVisibleRange: vi.fn(),
+        getVisibleRange: vi.fn(() => ({ from: 1000000000, to: 1100000000 })),
+        scrollToPosition: vi.fn(),
+        scrollToRealTime: vi.fn(),
+      })),
+
+      // Price scale
+      priceScale: vi.fn(() => ({
+        applyOptions: vi.fn(),
+        options: vi.fn(),
+        coordinateToPrice: vi.fn((coord: number) => 100 + coord / 10),
+      })),
+
+      // Event subscriptions
+      subscribeCrosshairMove: vi.fn(),
+      unsubscribeCrosshairMove: vi.fn(),
+      subscribeClick: vi.fn(),
+      unsubscribeClick: vi.fn(),
+
+      // Crosshair methods
+      setCrosshairPosition: vi.fn(),
+      clearCrosshairPosition: vi.fn(),
+    })),
+  };
+});
 
 // Mock ResizeObserver
 global.ResizeObserver = vi.fn().mockImplementation(() => ({
