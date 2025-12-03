@@ -1,18 +1,31 @@
-# Dependency directories
+# Dependencies
 node_modules/
 
-# Build outputs
-dist/
+# Test coverage and cache
 coverage/
-
-# IDE/editor noise
-.DS_Store
-.vscode/
-.idea/
-
-# Env/config
-.env
-.env.*
+.vite
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Editor directories
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+.env.local
+.env.*.local
