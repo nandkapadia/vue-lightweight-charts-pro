@@ -49,6 +49,8 @@ export interface PaneConfig {
   paneId: number;
   /** Pane height (percentage or pixels) */
   height?: number | string;
+  /** Pane height as a ratio of available space (0-1) */
+  heightRatio?: number;
   /** Whether pane is collapsed */
   collapsed?: boolean;
   /** Series rendered in this pane */

@@ -41,7 +41,13 @@ export interface UseChartWebSocketMethods {
   /** Request initial chart data */
   requestInitialData: (paneId?: number, seriesId?: string) => void;
   /** Request historical data */
-  requestHistory: (paneId: number, seriesId: string, beforeTime: number, count?: number) => void;
+  requestHistory: (
+    paneId: number,
+    seriesId: string,
+    time: number,
+    count?: number,
+    direction?: 'before' | 'after'
+  ) => void;
 }
 
 /**
@@ -157,7 +163,7 @@ export function useChartWebSocket(
 ): UseChartWebSocketReturn {
   const {
     url,
-    chartId,
+    chartId: _chartId,
     reconnect = DEFAULT_RECONNECT,
     pingInterval = DEFAULT_PING_INTERVAL,
   } = config;
@@ -329,7 +335,7 @@ export function useChartWebSocket(
     error.value = null;
 
     try {
-      const wsUrl = `${url}/charts/${chartId}`;
+      const wsUrl = url;
       socket = new WebSocket(wsUrl);
 
       socket.onopen = handleOpen;
@@ -403,14 +409,17 @@ export function useChartWebSocket(
   function requestHistory(
     paneId: number,
     seriesId: string,
-    beforeTime: number,
-    count: number = 500
+    time: number,
+    count: number = 500,
+    direction: 'before' | 'after' = 'before'
   ): void {
     send({
       type: 'request_history',
       paneId,
       seriesId,
-      beforeTime,
+      ...(direction === 'before'
+        ? { beforeTime: time }
+        : { afterTime: time }),
       count,
     });
   }

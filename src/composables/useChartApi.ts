@@ -45,6 +45,14 @@ function isValidResponseObject(value: unknown): value is Record<string, unknown>
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function isHealthCheckResponse(value: unknown): value is HealthCheckResponse {
+  return (
+    isValidResponseObject(value) &&
+    typeof value.status === 'string' &&
+    typeof value.version === 'string'
+  );
+}
+
 /**
  * API client state returned by the composable.
  */
@@ -80,8 +88,9 @@ export interface UseChartApiMethods {
     chartId: string,
     paneId: number,
     seriesId: string,
-    beforeTime: number,
-    count?: number
+    time: number,
+    count?: number,
+    direction?: 'before' | 'after'
   ) => Promise<GetHistoryResponse>;
   /** Clear error state */
   clearError: () => void;
@@ -206,9 +215,35 @@ export function useChartApi(options: UseChartApiOptions = {}): UseChartApiReturn
    * Check backend health status.
    */
   async function healthCheck(): Promise<HealthCheckResponse> {
+    isLoading.value = true;
+    error.value = null;
     // Health endpoint is at root, not under charts
-    const healthUrl = baseUrl.replace('/api/charts', '/health');
-    return request<HealthCheckResponse>(healthUrl);
+    const healthUrl = (() => {
+      try {
+        const parsed = new URL(baseUrl, typeof window !== 'undefined' ? window.location.origin : undefined);
+        return `${parsed.origin}/health`;
+      } catch {
+        return baseUrl.replace(/\/api\/charts$/, '') + '/health';
+      }
+    })();
+
+    try {
+      const response = await fetchFn(healthUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const result: unknown = await response.json();
+      if (!isHealthCheckResponse(result)) {
+        throw new Error('Invalid API response: expected health object');
+      }
+      data.value = result;
+      return result;
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Health check failed';
+      throw err;
+    } finally {
+      isLoading.value = false;
+    }
   }
 
   /**
@@ -269,13 +304,20 @@ export function useChartApi(options: UseChartApiOptions = {}): UseChartApiReturn
     chartId: string,
     paneId: number,
     seriesId: string,
-    beforeTime: number,
-    count: number = 500
+    time: number,
+    count: number = 500,
+    direction: 'before' | 'after' = 'before'
   ): Promise<GetHistoryResponse> {
     const params = new URLSearchParams({
-      before_time: beforeTime.toString(),
       count: count.toString(),
     });
+
+    if (direction === 'before') {
+      params.append('before_time', time.toString());
+    } else {
+      params.append('after_time', time.toString());
+    }
+
     return request<GetHistoryResponse>(
       `/${chartId}/history/${paneId}/${seriesId}?${params}`
     );

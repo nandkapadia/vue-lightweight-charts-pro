@@ -84,7 +84,11 @@ export interface GetHistoryRequest {
   /** Series identifier */
   seriesId: string;
   /** Get data before this timestamp */
-  beforeTime: number;
+  beforeTime?: number;
+  /** Get data after this timestamp */
+  afterTime?: number;
+  /** Direction of pagination */
+  direction?: 'before' | 'after';
   /** Number of data points to return (default 500) */
   count?: number;
 }

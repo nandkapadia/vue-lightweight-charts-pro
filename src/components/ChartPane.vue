@@ -9,6 +9,7 @@
 import {
   ref,
   inject,
+  computed,
   watch,
   onUnmounted,
   type PropType,
@@ -40,7 +41,12 @@ const props = defineProps({
   /** Pane height as percentage or pixels */
   height: {
     type: [Number, String],
-    default: '100%',
+    default: undefined,
+  },
+  /** Pane height as ratio of available space (0-1) */
+  heightRatio: {
+    type: Number,
+    default: undefined,
   },
   /** Whether the pane is collapsed */
   collapsed: {
@@ -77,6 +83,19 @@ const globalSeriesMap = inject<ShallowRef<Map<string, ISeriesApi<SeriesType>>>>(
 const localSeriesMap = ref<Map<string, ISeriesApi<SeriesType>>>(new Map());
 const isCollapsed = ref(props.collapsed);
 let seriesIdCounter = 0; // Counter for generating unique series IDs
+
+const computedHeight = computed(() => {
+  if (typeof props.height === 'number') {
+    return `${props.height}px`;
+  }
+  if (typeof props.height === 'string') {
+    return props.height;
+  }
+  if (props.heightRatio !== undefined) {
+    return `${props.heightRatio * 100}%`;
+  }
+  return '100%';
+});
 
 /**
  * Create a series on the chart for this pane.
@@ -270,7 +289,7 @@ defineExpose({
   <div
     class="chart-pane"
     :class="{ collapsed: isCollapsed }"
-    :style="{ height: typeof height === 'number' ? `${height}px` : height }"
+    :style="{ height: computedHeight }"
   >
     <div
       v-if="title"

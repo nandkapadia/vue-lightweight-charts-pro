@@ -95,7 +95,8 @@ Pane component for multi-pane layouts.
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `paneId` | `number` | Required | Pane identifier |
-| `heightRatio` | `number` | `1` | Height ratio relative to other panes |
+| `height` | `number \| string` | `100%` | Explicit pane height (px or CSS value). Takes precedence over `heightRatio`. |
+| `heightRatio` | `number` | `undefined` | Height as a fraction of available space (e.g. `0.3` = 30%). Used when `height` is not provided. |
 | `collapsed` | `boolean` | `false` | Whether pane is collapsed |
 
 ## Composables

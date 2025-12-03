@@ -138,15 +138,16 @@ const ws = props.wsUrl
         onDisconnected: () => emit('disconnected'),
         onError: (err) => emit('error', err),
         onHistoryResponse: (response) => {
-          if (response.data) {
-            mergeHistoryData(response.seriesId, response.data, response.hasMoreBefore ? 'before' : 'after');
-            lazyLoadingState?.handleHistoryResponse(
-              response.seriesId,
-              response.hasMoreBefore ? 'before' : 'after',
-              response.hasMoreBefore,
-              response.hasMoreAfter
-            );
+          const direction = response.hasMoreBefore ? 'before' : 'after';
+          if (response.data?.length) {
+            mergeHistoryData(response.seriesId, response.data, direction);
           }
+          lazyLoadingState?.handleHistoryResponse(
+            response.seriesId,
+            direction,
+            response.hasMoreBefore,
+            response.hasMoreAfter
+          );
         },
         onDataUpdate: async (update) => {
           // Refetch series data on update notification
@@ -163,10 +164,10 @@ const lazyLoadingState = props.lazyLoading
       seriesConfigs,
       onRequestHistory: (seriesId, paneId, beforeTime, direction, count) => {
         if (ws) {
-          ws.requestHistory(paneId, seriesId, beforeTime, count);
+          ws.requestHistory(paneId, seriesId, beforeTime, count, direction);
         } else {
           // Use REST API for history
-          api.getHistory(props.chartId, paneId, seriesId, beforeTime, count)
+          api.getHistory(props.chartId, paneId, seriesId, beforeTime, count, direction)
             .then((response) => {
               mergeHistoryData(seriesId, response.data, direction);
               lazyLoadingState?.handleHistoryResponse(
@@ -179,6 +180,7 @@ const lazyLoadingState = props.lazyLoading
             .catch((err) => {
               error.value = err instanceof Error ? err.message : 'Failed to load history';
               emit('error', err instanceof Error ? err : new Error(String(err)));
+              lazyLoadingState?.handleHistoryResponse(seriesId, direction, false, false);
             });
         }
       },
@@ -229,37 +231,42 @@ function createSeries(config: SeriesConfig): ISeriesApi<SeriesType> | null {
   const seriesId = config.seriesId || config.name || `series_${seriesMap.value.size}`;
   let series: ISeriesApi<SeriesType>;
 
+  const baseOptions = {
+    ...(config.options || {}),
+    ...(config.paneId !== undefined ? { pane: config.paneId } : {}),
+  };
+
   // Create series based on type
   const seriesType = config.seriesType.toLowerCase();
   switch (seriesType) {
     case 'line':
       series = chart.value.addSeries(
-        LineSeries, config.options as SeriesPartialOptionsMap['Line']
+        LineSeries, baseOptions as SeriesPartialOptionsMap['Line']
       );
       break;
     case 'area':
       series = chart.value.addSeries(
-        AreaSeries, config.options as SeriesPartialOptionsMap['Area']
+        AreaSeries, baseOptions as SeriesPartialOptionsMap['Area']
       );
       break;
     case 'candlestick':
       series = chart.value.addSeries(
-        CandlestickSeries, config.options as SeriesPartialOptionsMap['Candlestick']
+        CandlestickSeries, baseOptions as SeriesPartialOptionsMap['Candlestick']
       );
       break;
     case 'bar':
       series = chart.value.addSeries(
-        BarSeries, config.options as SeriesPartialOptionsMap['Bar']
+        BarSeries, baseOptions as SeriesPartialOptionsMap['Bar']
       );
       break;
     case 'histogram':
       series = chart.value.addSeries(
-        HistogramSeries, config.options as SeriesPartialOptionsMap['Histogram']
+        HistogramSeries, baseOptions as SeriesPartialOptionsMap['Histogram']
       );
       break;
     case 'baseline':
       series = chart.value.addSeries(
-        BaselineSeries, config.options as SeriesPartialOptionsMap['Baseline']
+        BaselineSeries, baseOptions as SeriesPartialOptionsMap['Baseline']
       );
       break;
     default:
@@ -328,31 +335,36 @@ function mergeHistoryData(
   );
   if (configIndex < 0) return;
 
+  type NormalizedPoint = DataPoint & { time: number };
+
+  const normalizeTime = (time: number | string): number => {
+    if (typeof time === 'string') {
+      return Math.floor(Date.parse(String(time)) / 1000);
+    }
+    return time;
+  };
+
+  const normalizeData = (data: DataPoint[] = []): NormalizedPoint[] =>
+    data.map((point) => ({
+      ...point,
+      time: normalizeTime(point.time),
+    }));
+
   const config = seriesConfigs.value[configIndex];
-  let mergedData: DataPoint[];
+  const existingData = normalizeData(config.data || []);
+  const incomingData = normalizeData(newData || []);
 
-  if (direction === 'before') {
-    mergedData = [...newData, ...config.data];
-  } else {
-    mergedData = [...config.data, ...newData];
-  }
+  const merged: NormalizedPoint[] = direction === 'before'
+    ? [...incomingData, ...existingData]
+    : [...existingData, ...incomingData];
 
-  // Sort by time
-  mergedData.sort((a, b) => {
-    const timeA = typeof a.time === 'number' ? a.time : Date.parse(String(a.time));
-    const timeB = typeof b.time === 'number' ? b.time : Date.parse(String(b.time));
-    return timeA - timeB;
-  });
+  const deduplicated: NormalizedPoint[] = Array.from(
+    new Map(merged.map((point) => [point.time, point])).values()
+  );
 
-  // Remove duplicates
-  const seen = new Set<number | string>();
-  mergedData = mergedData.filter((d) => {
-    if (seen.has(d.time)) return false;
-    seen.add(d.time);
-    return true;
-  });
+  deduplicated.sort((a, b) => a.time - b.time);
 
-  updateSeriesData(seriesId, mergedData);
+  updateSeriesData(seriesId, deduplicated);
 }
 
 /**

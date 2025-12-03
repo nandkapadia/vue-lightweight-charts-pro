@@ -83,7 +83,9 @@ export interface RequestHistoryMessage extends BaseMessage {
   /** Series identifier */
   seriesId: string;
   /** Get data before this timestamp */
-  beforeTime: number;
+  beforeTime?: number;
+  /** Get data after this timestamp */
+  afterTime?: number;
   /** Number of data points to request */
   count?: number;
 }
