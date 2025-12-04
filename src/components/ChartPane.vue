@@ -29,6 +29,7 @@ import {
   createAnnotationVisualElements,
   logger,
 } from '@lightweight-charts-pro/core';
+import { normalizeDataPoints } from '../utils/time';
 
 // Define props
 const props = defineProps({
@@ -81,6 +82,7 @@ const globalSeriesMap = inject<ShallowRef<Map<string, ExtendedSeriesApi>>>('seri
 // Local state
 const localSeriesMap = ref<Map<string, ExtendedSeriesApi>>(new Map());
 const isCollapsed = ref(props.collapsed);
+const previousSeriesConfigs = ref<SeriesConfig[]>([]); // Track previous configs for smart updates
 let seriesIdCounter = 0; // Counter for generating unique series IDs
 let chartLevelAnnotationMarkers: any[] = []; // Chart-level annotations for this pane
 
@@ -113,10 +115,13 @@ function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
   }
 
   try {
+    // Normalize data to ensure consistent time format (prevents ms/s misalignment)
+    const normalizedData = config.data ? normalizeDataPoints(config.data) : [];
+
     // Build extended config with paneId (matching the format expected by unified factory)
     const extendedConfig: ExtendedSeriesConfig = {
       type: config.seriesType,
-      data: config.data || [],
+      data: normalizedData,
       options: config.options || {},
       paneId: props.paneId,
       seriesId,
@@ -201,11 +206,50 @@ function removeSeries(seriesId: string): void {
 
 /**
  * Update data for a series in this pane.
+ * Uses incremental updates (series.update) instead of full setData when possible.
  */
-function updateSeriesData(seriesId: string, data: DataPoint[]): void {
+function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = false): void {
   const series = localSeriesMap.value.get(seriesId);
-  if (series) {
-    series.setData(data as Parameters<typeof series.setData>[0]);
+  if (!series) return;
+
+  // Normalize data to ensure consistent time format
+  const normalizedData = normalizeDataPoints(data);
+
+  if (isInitialLoad || normalizedData.length === 0) {
+    // Initial load or empty data: use setData()
+    series.setData(normalizedData as Parameters<typeof series.setData>[0]);
+  } else {
+    // Incremental update: use update() for better performance
+    // Get existing data from the series config to compare
+    const configIndex = props.series.findIndex(
+      (s) => (s.seriesId || s.name) === seriesId
+    );
+    const existingData = configIndex >= 0 ? props.series[configIndex].data : [];
+
+    if (!existingData?.length) {
+      // No existing data tracked, use setData
+      series.setData(normalizedData as Parameters<typeof series.setData>[0]);
+    } else {
+      // Build set of existing times for O(1) lookup
+      const existingTimes = new Set(existingData.map((d) => d.time));
+
+      // Find new bars (not in existing data)
+      const newBars = normalizedData.filter((bar) => !existingTimes.has(bar.time));
+
+      // Update last bar if changed (real-time tick)
+      if (existingData.length > 0 && normalizedData.length > 0) {
+        const lastExistingTime = existingData[existingData.length - 1].time;
+        const updatedLastBar = normalizedData.find((bar) => bar.time === lastExistingTime);
+        if (updatedLastBar) {
+          series.update(updatedLastBar as Parameters<typeof series.update>[0]);
+        }
+      }
+
+      // Append new bars using update() - O(1) per bar instead of O(n) for entire dataset
+      newBars.forEach((bar) => {
+        series.update(bar as Parameters<typeof series.update>[0]);
+      });
+    }
   }
 }
 
@@ -225,23 +269,83 @@ function toggleCollapse(): void {
 }
 
 /**
+ * Helper to check if series config changed (excluding data).
+ */
+function seriesConfigChanged(oldConfig: SeriesConfig, newConfig: SeriesConfig): boolean {
+  return (
+    oldConfig.seriesType !== newConfig.seriesType ||
+    JSON.stringify(oldConfig.options) !== JSON.stringify(newConfig.options) ||
+    JSON.stringify(oldConfig.markers) !== JSON.stringify(newConfig.markers) ||
+    JSON.stringify(oldConfig.priceLines) !== JSON.stringify(newConfig.priceLines) ||
+    JSON.stringify(oldConfig.trades) !== JSON.stringify(newConfig.trades) ||
+    JSON.stringify(oldConfig.annotations) !== JSON.stringify(newConfig.annotations)
+  );
+}
+
+/**
  * Initialize all series from props.
+ * Uses smart updates: only recreates if config changed, uses incremental updates for data changes.
  */
 function initializeSeries(): void {
   if (!chart?.value) return;
 
-  // Remove existing series
-  localSeriesMap.value.forEach((_, seriesId) => {
-    removeSeries(seriesId);
+  const isInitialLoad = previousSeriesConfigs.value.length === 0;
+
+  if (isInitialLoad) {
+    // Initial load: create all series
+    props.series.forEach((config) => {
+      createSeries({
+        ...config,
+        paneId: props.paneId,
+      });
+    });
+    previousSeriesConfigs.value = JSON.parse(JSON.stringify(props.series));
+    return;
+  }
+
+  // Build maps for comparison
+  const currentSeriesIds = new Set(
+    props.series.map((s, i) => s.seriesId || s.name || `pane${props.paneId}_series_${i}`)
+  );
+  const previousSeriesIds = new Set(
+    previousSeriesConfigs.value.map((s, i) => s.seriesId || s.name || `pane${props.paneId}_series_${i}`)
+  );
+
+  // Remove series that no longer exist
+  previousSeriesIds.forEach((seriesId) => {
+    if (!currentSeriesIds.has(seriesId)) {
+      removeSeries(seriesId);
+    }
   });
 
-  // Create new series
-  props.series.forEach((config) => {
-    createSeries({
-      ...config,
-      paneId: props.paneId,
-    });
+  // Add or update series
+  props.series.forEach((config, index) => {
+    const seriesId = config.seriesId || config.name || `pane${props.paneId}_series_${index}`;
+    const previousConfig = previousSeriesConfigs.value.find(
+      (s, i) => (s.seriesId || s.name || `pane${props.paneId}_series_${i}`) === seriesId
+    );
+
+    if (!previousConfig) {
+      // New series: create it
+      createSeries({
+        ...config,
+        paneId: props.paneId,
+      });
+    } else if (seriesConfigChanged(previousConfig, config)) {
+      // Config changed: recreate series
+      removeSeries(seriesId);
+      createSeries({
+        ...config,
+        paneId: props.paneId,
+      });
+    } else if (JSON.stringify(previousConfig.data) !== JSON.stringify(config.data)) {
+      // Only data changed: use incremental update
+      updateSeriesData(seriesId, config.data || [], false);
+    }
   });
+
+  // Update tracked configs
+  previousSeriesConfigs.value = JSON.parse(JSON.stringify(props.series));
 }
 
 // Watch for chart initialization
@@ -277,6 +381,7 @@ onUnmounted(() => {
   localSeriesMap.value.forEach((_, seriesId) => {
     removeSeries(seriesId);
   });
+  previousSeriesConfigs.value = [];
 });
 
 // Expose public API
