@@ -749,6 +749,53 @@ watch(
   }
 );
 
+// Watch for in-place data mutations (deep watch for nested data changes)
+// Detects when data is pushed/mutated without changing array reference
+watch(
+  () => props.series.map(s => ({
+    id: s.seriesId || s.name,
+    dataLength: s.data?.length || 0,
+    lastTime: s.data?.length ? s.data[s.data.length - 1]?.time : null
+  })),
+  (newMetadata, oldMetadata) => {
+    // Detect in-place mutations by comparing data length and last time
+    newMetadata.forEach((newMeta, index) => {
+      const oldMeta = oldMetadata?.[index];
+      if (!oldMeta) return;
+
+      const seriesId = newMeta.id;
+      const lengthChanged = newMeta.dataLength !== oldMeta.dataLength;
+      const lastTimeChanged = newMeta.lastTime !== oldMeta.lastTime;
+
+      // If data length or last time changed, update the series
+      if ((lengthChanged || lastTimeChanged) && seriesId) {
+        const config = props.series[index];
+        if (config?.data) {
+          // Update internal config
+          const configIndex = seriesConfigs.value.findIndex(
+            (c) => (c.seriesId || c.name) === seriesId
+          );
+          if (configIndex >= 0) {
+            seriesConfigs.value[configIndex].data = [...config.data];
+          }
+          // Update the series on the chart
+          updateSeriesData(seriesId, config.data);
+
+          // Warn about in-place mutation (best practice is immutable updates)
+          if (import.meta.env.DEV) {
+            console.warn(
+              `[LightweightChart] In-place mutation detected for series "${seriesId}". ` +
+              `For better performance, replace the data array instead: ` +
+              `series[i].data = [...newData]`
+            );
+          }
+        }
+      }
+    });
+  },
+  { deep: true }
+);
+
 // Watch for legends changes (config-driven like Streamlit)
 watch(
   () => props.legends,
