@@ -269,16 +269,35 @@ function toggleCollapse(): void {
 }
 
 /**
+ * Shallow equality check for objects/arrays (reference comparison).
+ * For reactive props, reference changes indicate mutations.
+ */
+function shallowEqual(a: any, b: any): boolean {
+  // Null/undefined check
+  if (a === b) return true;
+  if (!a || !b) return false;
+
+  // For arrays, check reference equality (Vue will create new array on mutation)
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a === b;
+  }
+
+  // For objects, check reference equality (Vue will create new object on mutation)
+  return a === b;
+}
+
+/**
  * Helper to check if series config changed (excluding data).
+ * Uses shallow equality to avoid O(n) JSON.stringify on large datasets.
  */
 function seriesConfigChanged(oldConfig: SeriesConfig, newConfig: SeriesConfig): boolean {
   return (
     oldConfig.seriesType !== newConfig.seriesType ||
-    JSON.stringify(oldConfig.options) !== JSON.stringify(newConfig.options) ||
-    JSON.stringify(oldConfig.markers) !== JSON.stringify(newConfig.markers) ||
-    JSON.stringify(oldConfig.priceLines) !== JSON.stringify(newConfig.priceLines) ||
-    JSON.stringify(oldConfig.trades) !== JSON.stringify(newConfig.trades) ||
-    JSON.stringify(oldConfig.annotations) !== JSON.stringify(newConfig.annotations)
+    !shallowEqual(oldConfig.options, newConfig.options) ||
+    !shallowEqual(oldConfig.markers, newConfig.markers) ||
+    !shallowEqual(oldConfig.priceLines, newConfig.priceLines) ||
+    !shallowEqual(oldConfig.trades, newConfig.trades) ||
+    !shallowEqual(oldConfig.annotations, newConfig.annotations)
   );
 }
 
@@ -299,7 +318,8 @@ function initializeSeries(): void {
         paneId: props.paneId,
       });
     });
-    previousSeriesConfigs.value = JSON.parse(JSON.stringify(props.series));
+    // Store reference to current series array (shallow copy sufficient for change detection)
+    previousSeriesConfigs.value = [...props.series];
     return;
   }
 
@@ -338,14 +358,14 @@ function initializeSeries(): void {
         ...config,
         paneId: props.paneId,
       });
-    } else if (JSON.stringify(previousConfig.data) !== JSON.stringify(config.data)) {
-      // Only data changed: use incremental update
+    } else if (!shallowEqual(previousConfig.data, config.data)) {
+      // Data array reference changed: use incremental update
       updateSeriesData(seriesId, config.data || [], false);
     }
   });
 
-  // Update tracked configs
-  previousSeriesConfigs.value = JSON.parse(JSON.stringify(props.series));
+  // Update tracked configs (shallow copy for change detection)
+  previousSeriesConfigs.value = [...props.series];
 }
 
 // Watch for chart initialization
