@@ -55,8 +55,15 @@ export function normalizeTime(time: number | string | Time): number {
   }
 
   if (typeof time === 'string') {
-    // Parse string date to seconds
-    const parsed = Math.floor(Date.parse(time) / 1000);
+    // Parse string date as UTC to avoid local timezone shifts
+    // If no timezone info present (no Z, +, or -), append Z to force UTC
+    let utcString = time;
+    if (!time.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(time)) {
+      // No explicit timezone - treat as UTC by appending Z
+      utcString = time + 'Z';
+    }
+
+    const parsed = Math.floor(Date.parse(utcString) / 1000);
 
     if (isNaN(parsed)) {
       throw new Error(`Unparsable time string: "${time}"`);
