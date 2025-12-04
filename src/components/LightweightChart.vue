@@ -502,9 +502,30 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
       series.update(bar as Parameters<typeof series.update>[0]);
     });
 
-    // Update config with merged data
+    // CRITICAL: Merge new bars into existing array to preserve history for lazy loading
+    // Don't overwrite with just the new payload - this would lose all prior history
     if (configIndex >= 0) {
-      seriesConfigs.value[configIndex].data = normalizedData;
+      // Build time-to-bar map for deduplication (newer bars overwrite older)
+      const mergedMap = new Map<number | string, DataPoint>();
+
+      // Add existing bars
+      existingData.forEach((bar) => {
+        mergedMap.set(bar.time, bar);
+      });
+
+      // Add/overwrite with new bars (newer data wins)
+      normalizedData.forEach((bar) => {
+        mergedMap.set(bar.time, bar);
+      });
+
+      // Convert back to sorted array
+      const mergedData = Array.from(mergedMap.values()).sort((a, b) => {
+        const timeA = typeof a.time === 'string' ? new Date(a.time).getTime() / 1000 : a.time;
+        const timeB = typeof b.time === 'string' ? new Date(b.time).getTime() / 1000 : b.time;
+        return timeA - timeB;
+      });
+
+      seriesConfigs.value[configIndex].data = mergedData;
     }
   }
 
