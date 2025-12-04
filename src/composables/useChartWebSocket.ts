@@ -212,9 +212,14 @@ export function useChartWebSocket(
 
       switch (message.type) {
         case 'connected':
+          // State already set to 'connected' in handleOpen()
+          // Server message is optional confirmation - just update if needed
           state.value = 'connected';
           reconnectAttempts.value = 0;
-          handlers.onConnected?.(message.chartId);
+          // Only call handler if chartId differs (server override)
+          if (message.chartId !== _chartId) {
+            handlers.onConnected?.(message.chartId);
+          }
           break;
 
         case 'pong':
@@ -240,10 +245,17 @@ export function useChartWebSocket(
 
   /**
    * Handle WebSocket connection open.
+   * Sets state to 'connected' immediately - server 'connected' message is optional.
    */
   function handleOpen(): void {
-    state.value = 'connecting';
+    state.value = 'connected';
+    reconnectAttempts.value = 0;
     startPingInterval();
+
+    // Notify handler immediately (server may send 'connected' message later)
+    if (_chartId) {
+      handlers.onConnected?.(_chartId);
+    }
   }
 
   /**
