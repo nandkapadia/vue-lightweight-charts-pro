@@ -57,7 +57,7 @@
  */
 
 // Components
-export { LightweightChart, ChartPane } from './components';
+export { LightweightChart, ChartPane, Legend, RangeSwitcher } from './components';
 
 // Composables
 export {
@@ -70,6 +70,9 @@ export {
   type UseLazyLoadingReturn,
   type UseLazyLoadingOptions,
 } from './composables';
+
+// Re-export useful core utilities
+export { TimeRange, type RangeConfig } from '@lightweight-charts-pro/core';
 
 // Types
 export type {

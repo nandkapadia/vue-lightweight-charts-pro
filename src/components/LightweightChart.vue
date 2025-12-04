@@ -19,20 +19,12 @@ import {
 } from 'vue';
 import {
   createChart,
-  LineSeries,
-  AreaSeries,
-  CandlestickSeries,
-  BarSeries,
-  HistogramSeries,
-  BaselineSeries,
+  createSeriesMarkers,
   type IChartApi,
-  type ISeriesApi,
-  type SeriesType,
   type MouseEventParams,
   type LogicalRange,
   type DeepPartial,
   type TimeChartOptions,
-  type SeriesPartialOptionsMap,
 } from 'lightweight-charts';
 import type { ChartOptions, SeriesConfig, DataPoint, Annotation } from '../types';
 import { useChartApi } from '../composables/useChartApi';
@@ -41,17 +33,12 @@ import { useLazyLoading } from '../composables/useLazyLoading';
 
 // Import from core package for custom series and features
 import {
-  // Custom series creators
-  createBandSeries,
-  createRibbonSeries,
-  createSignalSeries,
-  createTrendFillSeries,
-  createGradientRibbonSeries,
+  // Unified series factory (like Streamlit uses)
+  createSeriesWithConfig,
+  type ExtendedSeriesApi,
+  type ExtendedSeriesConfig,
 
-  // Trade visualization
-  createTradeVisualElements,
-
-  // Annotation system
+  // Annotation system (for chart-level annotations)
   createAnnotationVisualElements,
 
   // Utilities
@@ -137,7 +124,7 @@ const containerRef = ref<HTMLElement | null>(null);
 
 // Chart state
 const chart = shallowRef<IChartApi | null>(null);
-const seriesMap = shallowRef<Map<string, ISeriesApi<SeriesType>>>(new Map());
+const seriesMap = shallowRef<Map<string, ExtendedSeriesApi>>(new Map());
 const seriesConfigs = ref<SeriesConfig[]>([...props.series]);
 const isInitialized = ref(false);
 const error = ref<string | null>(null);
@@ -246,8 +233,16 @@ function initializeChart(): void {
   if (props.annotations?.length) {
     try {
       const annotationVisuals = createAnnotationVisualElements(props.annotations as any);
-      // TODO: Apply chart-level annotation visuals
-      logger.info(`Created ${annotationVisuals.markers.length} chart-level annotation markers`, 'LightweightChart');
+
+      // Note: Chart-level annotations require a series to attach to
+      // They will be applied when the first series is created
+      // Store them for later application
+      if (annotationVisuals.markers?.length || annotationVisuals.shapes?.length || annotationVisuals.texts?.length) {
+        logger.info(
+          `Chart-level annotations created: ${annotationVisuals.markers.length} markers, ${annotationVisuals.shapes.length} shapes, ${annotationVisuals.texts.length} texts`,
+          'LightweightChart'
+        );
+      }
     } catch (err) {
       logger.error('Failed to create chart annotations', 'LightweightChart', err);
     }
@@ -258,129 +253,70 @@ function initializeChart(): void {
 }
 
 /**
- * Create a series on the chart.
+ * Create a series on the chart using the unified factory (like Streamlit).
+ * This delegates to core's createSeriesWithConfig which handles all series types,
+ * markers, price lines, trades, annotations, and more.
  */
-function createSeries(config: SeriesConfig): ISeriesApi<SeriesType> | null {
+function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
   if (!chart.value) return null;
 
   const seriesId = config.seriesId || config.name || `series_${seriesMap.value.size}`;
-  let series: ISeriesApi<SeriesType>;
 
-  const baseOptions = {
-    ...(config.options || {}),
-    ...(config.paneId !== undefined ? { pane: config.paneId } : {}),
-  };
+  try {
+    // Convert our SeriesConfig to ExtendedSeriesConfig format expected by core
+    const extendedConfig: ExtendedSeriesConfig = {
+      type: config.seriesType,
+      data: config.data || [],
+      options: config.options || {},
+      paneId: config.paneId ?? 0,
+      priceLines: config.priceLines as any,
+      markers: config.markers,
+      seriesId: seriesId,
+      chartId: props.chartId,
+      // Pass trade visualization config
+      trades: config.trades as any,
+      tradeVisualizationOptions: config.tradeVisualizationOptions as any,
+    };
 
-  // Create series based on type
-  const seriesType = config.seriesType.toLowerCase();
-  switch (seriesType) {
-    case 'line':
-      series = chart.value.addSeries(
-        LineSeries, baseOptions as SeriesPartialOptionsMap['Line']
-      );
-      break;
-    case 'area':
-      series = chart.value.addSeries(
-        AreaSeries, baseOptions as SeriesPartialOptionsMap['Area']
-      );
-      break;
-    case 'candlestick':
-      series = chart.value.addSeries(
-        CandlestickSeries, baseOptions as SeriesPartialOptionsMap['Candlestick']
-      );
-      break;
-    case 'bar':
-      series = chart.value.addSeries(
-        BarSeries, baseOptions as SeriesPartialOptionsMap['Bar']
-      );
-      break;
-    case 'histogram':
-      series = chart.value.addSeries(
-        HistogramSeries, baseOptions as SeriesPartialOptionsMap['Histogram']
-      );
-      break;
-    case 'baseline':
-      series = chart.value.addSeries(
-        BaselineSeries, baseOptions as SeriesPartialOptionsMap['Baseline']
-      );
-      break;
-    // Custom series from @lightweight-charts-pro/core
-    case 'band':
-      series = createBandSeries(chart.value, baseOptions);
-      break;
-    case 'ribbon':
-      series = createRibbonSeries(chart.value, baseOptions);
-      break;
-    case 'signal':
-      series = createSignalSeries(chart.value, baseOptions);
-      break;
-    case 'trendfill':
-      series = createTrendFillSeries(chart.value, baseOptions);
-      break;
-    case 'gradientribbon':
-      series = createGradientRibbonSeries(chart.value, baseOptions);
-      break;
-    default:
-      logger.error(`Unknown series type: ${config.seriesType}`, 'LightweightChart');
+    // Use core's unified factory (same as Streamlit)
+    const series = createSeriesWithConfig(chart.value, extendedConfig);
+
+    if (!series) {
+      logger.error(`Failed to create series: ${config.seriesType}`, 'LightweightChart');
       return null;
-  }
-
-  // Set data if available
-  if (config.data?.length) {
-    series.setData(config.data as Parameters<typeof series.setData>[0]);
-  }
-
-  // Add markers if available (only for series that support markers)
-  if (config.markers?.length && 'setMarkers' in series) {
-    (series as any).setMarkers(config.markers);
-  }
-
-  // Add price lines if available
-  if (config.priceLines?.length) {
-    config.priceLines.forEach((priceLineConfig) => {
-      series.createPriceLine(priceLineConfig as any);
-    });
-  }
-
-  // Add trade visualization if available
-  if (config.trades?.length && config.tradeVisualizationOptions) {
-    try {
-      const tradeVisuals = createTradeVisualElements(
-        config.trades,
-        config.tradeVisualizationOptions,
-        config.data
-      );
-      // Apply trade markers to series
-      if (tradeVisuals.markers?.length && 'setMarkers' in series) {
-        (series as any).setMarkers(tradeVisuals.markers);
-      }
-      // TODO: Apply rectangles and annotations to chart
-      logger.info(`Created ${tradeVisuals.markers.length} trade markers`, 'LightweightChart');
-    } catch (err) {
-      logger.error('Failed to create trade visualizations', 'LightweightChart', err);
     }
-  }
 
-  // Add annotations if available
-  if (config.annotations?.length) {
-    try {
-      const annotationVisuals = createAnnotationVisualElements(config.annotations as any);
-      // Apply annotation markers to series
-      if (annotationVisuals.markers?.length && 'setMarkers' in series) {
-        const existingMarkers = config.markers || [];
-        (series as any).setMarkers([...existingMarkers, ...annotationVisuals.markers]);
+    // Handle annotations if present
+    if (config.annotations?.length) {
+      try {
+        const annotationVisuals = createAnnotationVisualElements(config.annotations as any);
+
+        // Apply annotation markers (merge with existing markers)
+        if (annotationVisuals.markers?.length) {
+          const existingMarkers = config.markers || [];
+          createSeriesMarkers(series, [...existingMarkers, ...annotationVisuals.markers]);
+        }
+
+        // Log other annotation elements (shapes/texts)
+        if (annotationVisuals.shapes?.length) {
+          logger.info(`Annotation shapes available: ${annotationVisuals.shapes.length}`, 'LightweightChart');
+        }
+        if (annotationVisuals.texts?.length) {
+          logger.info(`Text annotations available: ${annotationVisuals.texts.length}`, 'LightweightChart');
+        }
+      } catch (err) {
+        logger.error('Failed to create annotations', 'LightweightChart', err);
       }
-      // TODO: Apply shapes and texts to chart
-      logger.info(`Created ${annotationVisuals.markers.length} annotation markers`, 'LightweightChart');
-    } catch (err) {
-      logger.error('Failed to create annotations', 'LightweightChart', err);
     }
-  }
 
-  seriesMap.value.set(seriesId, series);
-  // Trigger reactivity for shallowRef Map mutation
-  triggerRef(seriesMap);
-  return series;
+    seriesMap.value.set(seriesId, series);
+    // Trigger reactivity for shallowRef Map mutation
+    triggerRef(seriesMap);
+    return series;
+  } catch (err) {
+    logger.error(`Failed to create series ${config.seriesType}`, 'LightweightChart', err);
+    return null;
+  }
 }
 
 /**
