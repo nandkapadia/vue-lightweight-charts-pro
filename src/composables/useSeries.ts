@@ -9,6 +9,7 @@ import { ref, inject, onMounted, onUnmounted, watch, provide, type Ref } from 'v
 import type { IChartApi } from 'lightweight-charts';
 import { createSeriesWithConfig, type ExtendedSeriesApi, type ExtendedSeriesConfig, logger } from '@lightweight-charts-pro/core';
 import type { DataPoint } from '../types';
+import { normalizeDataPoints } from '../utils/time';
 
 export interface UseSeriesOptions {
   type: string;
@@ -45,10 +46,13 @@ export function useSeries(props: UseSeriesOptions) {
       const seriesId = props.seriesId || `series-${Date.now()}`;
       resolvedSeriesId.value = seriesId;
 
+      // Normalize data to prevent ms/s misalignment (1000x future plotting)
+      const normalizedData = props.data ? normalizeDataPoints(props.data) : [];
+
       // Build config for core's createSeriesWithConfig
       const config: ExtendedSeriesConfig = {
         type: props.type,
-        data: props.data || [],
+        data: normalizedData,
         options: props.options || {},
         paneId: props.paneId ?? 0,
         priceLines: props.priceLines as any,
@@ -87,11 +91,14 @@ export function useSeries(props: UseSeriesOptions) {
 
   /**
    * Update series data
+   * Normalizes timestamps to prevent ms/s misalignment
    */
   function updateData(newData: DataPoint[]) {
     if (series.value && newData) {
       try {
-        series.value.setData(newData as any);
+        // Normalize data to ensure consistent time format
+        const normalizedData = normalizeDataPoints(newData);
+        series.value.setData(normalizedData as any);
       } catch (err) {
         logger.error('Failed to update series data', 'useSeries', err);
       }
