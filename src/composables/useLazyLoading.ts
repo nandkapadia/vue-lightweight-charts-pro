@@ -30,6 +30,34 @@ function timeToSeconds(time: Time): number {
 }
 
 /**
+ * Calculate average bar spacing from data.
+ * Returns the average time difference between consecutive bars in seconds.
+ * Returns null if insufficient data (< 2 bars).
+ */
+function calculateAverageBarSpacing(data: DataPoint[]): number | null {
+  if (!data || data.length < 2) return null;
+
+  // Sample first 100 bars for performance (sufficient to estimate spacing)
+  const sampleSize = Math.min(100, data.length);
+  let totalSpacing = 0;
+  let spacingCount = 0;
+
+  for (let i = 1; i < sampleSize; i++) {
+    const prevTime = normalizeTime(data[i - 1].time);
+    const currTime = normalizeTime(data[i].time);
+    const spacing = currTime - prevTime;
+
+    // Only count positive spacings (data should be sorted ascending)
+    if (spacing > 0) {
+      totalSpacing += spacing;
+      spacingCount++;
+    }
+  }
+
+  return spacingCount > 0 ? totalSpacing / spacingCount : null;
+}
+
+/**
  * State for tracking lazy loading per series.
  */
 interface SeriesLazyState {
@@ -42,6 +70,8 @@ interface SeriesLazyState {
   // Cached normalized timestamps for performance (avoid recomputing on every scroll)
   minTime: number | null;
   maxTime: number | null;
+  // Cached average bar spacing in seconds (derived from data, not hardcoded)
+  averageBarSpacing: number | null;
 }
 
 /**
@@ -181,14 +211,18 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
         const seriesId = config.seriesId || config.name || `series_${index}`;
         const existingState = loadingStates.value.get(seriesId);
 
-        // Cache normalized min/max timestamps for performance
+        // Cache normalized min/max timestamps and average bar spacing for performance
         let minTime: number | null = null;
         let maxTime: number | null = null;
+        let averageBarSpacing: number | null = null;
         if (config.data?.length) {
           const firstDataTime = config.data[0]?.time;
           const lastDataTime = config.data[config.data.length - 1]?.time;
           if (firstDataTime) minTime = normalizeTime(firstDataTime);
           if (lastDataTime) maxTime = normalizeTime(lastDataTime);
+
+          // Calculate average bar spacing from data (replaces hardcoded 60s assumption)
+          averageBarSpacing = calculateAverageBarSpacing(config.data);
         }
 
         // Preserve loading state if series already exists and has pending requests
@@ -199,6 +233,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
             paneId: config.paneId || 0,
             minTime,
             maxTime,
+            averageBarSpacing,
           });
         } else {
           newStates.set(seriesId, {
@@ -210,6 +245,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
             lastRequestTime: 0,
             minTime,
             maxTime,
+            averageBarSpacing,
           });
         }
       }
@@ -299,7 +335,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
       state.lazyLoading.hasMoreAfter = hasMoreAfter;
     }
 
-    // CRITICAL: Update cached min/max timestamps after history merge
+    // CRITICAL: Update cached min/max timestamps and bar spacing after history merge
     // Find the series config to get updated data boundaries
     const config = seriesConfigs.value.find(
       (c, i) => (c.seriesId || c.name || `series_${i}`) === seriesId
@@ -315,6 +351,9 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
       if (lastDataTime) {
         state.maxTime = normalizeTime(lastDataTime);
       }
+
+      // Recalculate average bar spacing with new data
+      state.averageBarSpacing = calculateAverageBarSpacing(config.data);
     }
 
     // Update global loading state
@@ -346,10 +385,6 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
       return;
     }
 
-    // Time threshold in seconds (convert bar-count threshold to approximate time)
-    // Assuming average bar is 60 seconds (1 minute) - could be configurable
-    const timeThreshold = loadThreshold * 60;
-
     loadingStates.value.forEach((state, seriesId) => {
       if (!state.lazyLoading.enabled) return;
 
@@ -358,6 +393,11 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
       const maxTime = state.maxTime;
 
       if (minTime === null || maxTime === null) return;
+
+      // Calculate time threshold based on actual bar spacing (not hardcoded 60s)
+      // If bar spacing unknown, fallback to 60s for 1-minute bars
+      const barSpacing = state.averageBarSpacing || 60;
+      const timeThreshold = loadThreshold * barSpacing;
 
       // Check if we're near the start (visible range approaching first data point)
       if (
