@@ -57,7 +57,7 @@
  */
 
 // Components
-export { LightweightChart, ChartPane } from './components';
+export { LightweightChart, ChartPane, Legend, RangeSwitcher } from './components';
 
 // Composables
 export {
