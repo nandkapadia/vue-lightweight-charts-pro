@@ -12,3 +12,4 @@ export {
   type UseLazyLoadingReturn,
   type UseLazyLoadingOptions,
 } from './useLazyLoading';
+export { useSeries, type UseSeriesOptions } from './useSeries';

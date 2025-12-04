@@ -1,0 +1,104 @@
+<template>
+  <div style="display: none;">
+    <!-- Annotation is rendered by the chart - no DOM needed -->
+  </div>
+</template>
+
+<script setup lang="ts">
+/**
+ * @fileoverview Annotation component for adding text and shapes to charts
+ *
+ * Can be used as:
+ * 1. Child of Series - Series-level annotation
+ * 2. Child of LightweightChart - Chart-level annotation
+ *
+ * Supports multiple types: text, arrow, shape, circle, rectangle, line
+ *
+ * @example Series-level annotation:
+ * <CandlestickSeries :data="priceData">
+ *   <Annotation :time="123" :price="100" text="Buy Signal" type="arrow" position="above" />
+ * </CandlestickSeries>
+ *
+ * @example Chart-level annotation:
+ * <LightweightChart>
+ *   <Annotation :time="123" text="Market Event" type="text" />
+ * </LightweightChart>
+ */
+
+import { inject, onMounted, type Ref } from 'vue';
+import type { ExtendedSeriesApi } from '@lightweight-charts-pro/core';
+import { createAnnotationVisualElements } from '@lightweight-charts-pro/core';
+import { createSeriesMarkers } from 'lightweight-charts';
+
+interface Props {
+  time: number | string;
+  price?: number;
+  text?: string;
+  type?: 'text' | 'arrow' | 'shape' | 'circle' | 'rectangle' | 'line';
+  position?: 'above' | 'below' | 'inBar' | 'aboveBar' | 'belowBar';
+  color?: string;
+  textColor?: string;
+  backgroundColor?: string;
+  fontSize?: number;
+  // For shape annotations
+  points?: Array<{ time: number | string; price: number }>;
+  fillColor?: string;
+  borderWidth?: number;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  type: 'text',
+  position: 'aboveBar',
+  color: '#2196F3',
+  textColor: '#131722',
+  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  fontSize: 12,
+});
+
+const series = inject<Ref<ExtendedSeriesApi | null>>('series', null as any);
+
+onMounted(() => {
+  // Can work with or without series (chart-level vs series-level)
+  if (!series?.value) {
+    console.warn('Annotation: No series found. Chart-level annotations not yet fully implemented.');
+    return;
+  }
+
+  try {
+    // Build annotation config
+    const annotationConfig = {
+      time: props.time,
+      price: props.price,
+      text: props.text,
+      type: props.type,
+      position: props.position,
+      color: props.color,
+      textColor: props.textColor,
+      backgroundColor: props.backgroundColor,
+      fontSize: props.fontSize,
+      points: props.points,
+      fillColor: props.fillColor,
+      borderWidth: props.borderWidth,
+    };
+
+    // Create annotation visual elements
+    const annotationVisuals = createAnnotationVisualElements([annotationConfig as any]);
+
+    // Apply markers
+    if (annotationVisuals.markers?.length && series.value) {
+      const existingMarkers = (series.value as any).markers?.() || [];
+      createSeriesMarkers(series.value, [...existingMarkers, ...annotationVisuals.markers]);
+    }
+
+    // Log shapes and texts (full rendering pending)
+    if (annotationVisuals.shapes?.length) {
+      console.log(`Annotation shapes available: ${annotationVisuals.shapes.length}`);
+    }
+    if (annotationVisuals.texts?.length) {
+      console.log(`Annotation texts available: ${annotationVisuals.texts.length}`);
+    }
+  } catch (error) {
+    console.error('Failed to create annotation:', error);
+  }
+});
+</script>

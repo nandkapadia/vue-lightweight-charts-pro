@@ -57,18 +57,45 @@
  */
 
 // Components
-export { LightweightChart, ChartPane, Legend, RangeSwitcher } from './components';
+export {
+  // Main chart components
+  LightweightChart,
+  ChartPane,
+  // UI primitives
+  Legend,
+  RangeSwitcher,
+  // Series components
+  Series,
+  LineSeries,
+  AreaSeries,
+  CandlestickSeries,
+  BarSeries,
+  HistogramSeries,
+  BaselineSeries,
+  BandSeries,
+  RibbonSeries,
+  SignalSeries,
+  TrendFillSeries,
+  GradientRibbonSeries,
+  // Series feature components
+  Marker,
+  PriceLine,
+  Trade,
+  Annotation,
+} from './components';
 
 // Composables
 export {
   useChartApi,
   useChartWebSocket,
   useLazyLoading,
+  useSeries,
   type UseChartApiReturn,
   type UseChartApiOptions,
   type UseChartWebSocketReturn,
   type UseLazyLoadingReturn,
   type UseLazyLoadingOptions,
+  type UseSeriesOptions,
 } from './composables';
 
 // Re-export useful core utilities
