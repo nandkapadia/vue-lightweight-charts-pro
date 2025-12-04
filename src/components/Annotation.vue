@@ -29,6 +29,7 @@ import { inject, onMounted, onUnmounted, watch, type Ref } from 'vue';
 import type { ExtendedSeriesApi } from '@lightweight-charts-pro/core';
 import { createAnnotationVisualElements, logger } from '@lightweight-charts-pro/core';
 import { createSeriesMarkers } from 'lightweight-charts';
+import { normalizeTime } from '../utils/time';
 
 interface Props {
   time: number | string;
@@ -70,9 +71,9 @@ function createOrUpdateAnnotation() {
   }
 
   try {
-    // Build annotation config
+    // Build annotation config with normalized time
     const annotationConfig = {
-      time: props.time,
+      time: normalizeTime(props.time),
       price: props.price,
       text: props.text,
       type: props.type,
@@ -81,7 +82,8 @@ function createOrUpdateAnnotation() {
       textColor: props.textColor,
       backgroundColor: props.backgroundColor,
       fontSize: props.fontSize,
-      points: props.points,
+      // Normalize time in points array as well
+      points: props.points?.map(p => ({ ...p, time: normalizeTime(p.time) })),
       fillColor: props.fillColor,
       borderWidth: props.borderWidth,
     };

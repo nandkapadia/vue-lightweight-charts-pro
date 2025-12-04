@@ -22,6 +22,7 @@ import { inject, onMounted, onUnmounted, watch, type Ref } from 'vue';
 import { createSeriesMarkers, type SeriesMarker } from 'lightweight-charts';
 import type { ExtendedSeriesApi } from '@lightweight-charts-pro/core';
 import { logger } from '@lightweight-charts-pro/core';
+import { normalizeTime } from '../utils/time';
 
 interface Props {
   time: number | string;
@@ -67,9 +68,9 @@ function createOrUpdateMarker() {
       markersToSet.splice(markerIndex, 1);
     }
 
-    // Create new marker object
+    // Create new marker object with normalized time
     marker = {
-      time: props.time as any,
+      time: normalizeTime(props.time) as any,
       position: normalizedPosition as any,
       ...(props.color ? { color: props.color } : {}),
       shape: props.shape as any,
