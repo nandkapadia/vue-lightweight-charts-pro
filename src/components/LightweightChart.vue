@@ -770,10 +770,36 @@ watch(
   (newAnnotations) => {
     if (!newAnnotations?.length) {
       chartLevelAnnotationMarkers = [];
-      // Re-apply markers to all series (without chart-level annotations)
-      seriesMap.value.forEach((series) => {
+      // Re-apply markers to all series (preserving series markers/annotations)
+      seriesMap.value.forEach((series, seriesId) => {
+        const config = seriesConfigs.value.find(
+          (c) => (c.seriesId || c.name) === seriesId
+        );
+        if (!config) return;
+
+        const allMarkers: any[] = [];
+
+        // 1. Add explicit markers from config
+        if (config.markers?.length) {
+          allMarkers.push(...config.markers);
+        }
+
+        // 2. Add series-level annotations (converted to markers)
+        if (config.annotations?.length) {
+          try {
+            const seriesAnnotationVisuals = createAnnotationVisualElements(config.annotations as any);
+            if (seriesAnnotationVisuals.markers?.length) {
+              allMarkers.push(...seriesAnnotationVisuals.markers);
+            }
+          } catch (err) {
+            logger.error(`Failed to convert series annotations for ${seriesId}`, 'LightweightChart', err);
+          }
+        }
+
+        // 3. Chart-level annotations are empty (cleared)
+
         try {
-          createSeriesMarkers(series, []);
+          createSeriesMarkers(series, allMarkers);
         } catch (err) {
           logger.error('Failed to clear chart annotations', 'LightweightChart', err);
         }
