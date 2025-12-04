@@ -21,6 +21,9 @@ interface SeriesLazyState {
   isLoadingBefore: boolean;
   isLoadingAfter: boolean;
   lastRequestTime: number;
+  // Cached normalized timestamps for performance (avoid recomputing on every scroll)
+  minTime: number | null;
+  maxTime: number | null;
 }
 
 /**
@@ -150,6 +153,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
   /**
    * Initialize lazy loading states from series configs.
    * Preserves existing loading states for in-flight requests.
+   * Caches min/max normalized timestamps for performance.
    */
   function initializeStates(): void {
     const newStates = new Map<string, SeriesLazyState>();
@@ -159,12 +163,24 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
         const seriesId = config.seriesId || config.name || `series_${index}`;
         const existingState = loadingStates.value.get(seriesId);
 
+        // Cache normalized min/max timestamps for performance
+        let minTime: number | null = null;
+        let maxTime: number | null = null;
+        if (config.data?.length) {
+          const firstDataTime = config.data[0]?.time;
+          const lastDataTime = config.data[config.data.length - 1]?.time;
+          if (firstDataTime) minTime = normalizeTime(firstDataTime);
+          if (lastDataTime) maxTime = normalizeTime(lastDataTime);
+        }
+
         // Preserve loading state if series already exists and has pending requests
         if (existingState && (existingState.isLoadingBefore || existingState.isLoadingAfter)) {
           newStates.set(seriesId, {
             ...existingState,
             lazyLoading: { ...config.lazyLoading },
             paneId: config.paneId || 0,
+            minTime,
+            maxTime,
           });
         } else {
           newStates.set(seriesId, {
@@ -174,6 +190,8 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
             isLoadingBefore: false,
             isLoadingAfter: false,
             lastRequestTime: 0,
+            minTime,
+            maxTime,
           });
         }
       }
@@ -270,7 +288,8 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
 
   /**
    * Check if we need to load more data based on visible range.
-   * Uses time-based boundaries instead of logical indices for accuracy with gappy/irregular series.
+   * Uses cached normalized timestamps for performance (avoids recomputing on every scroll).
+   * Time-based boundaries ensure accuracy with gappy/irregular series.
    */
   function checkAndLoadData(logicalRange: LogicalRange | null): void {
     if (!logicalRange || !chart.value) return;
@@ -291,37 +310,28 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
     loadingStates.value.forEach((state, seriesId) => {
       if (!state.lazyLoading.enabled) return;
 
-      // Find the series config
-      const seriesConfig = seriesConfigs.value.find(
-        (c) => (c.seriesId || c.name) === seriesId
-      );
-      if (!seriesConfig?.data?.length) return;
+      // Use cached min/max timestamps - avoids array access and normalizeTime() calls
+      const minTime = state.minTime;
+      const maxTime = state.maxTime;
 
-      const firstDataTime = seriesConfig.data[0]?.time;
-      const lastDataTime = seriesConfig.data[seriesConfig.data.length - 1]?.time;
-
-      if (!firstDataTime || !lastDataTime) return;
-
-      // Normalize data boundary timestamps
-      const firstTime = normalizeTime(firstDataTime);
-      const lastTime = normalizeTime(lastDataTime);
+      if (minTime === null || maxTime === null) return;
 
       // Check if we're near the start (visible range approaching first data point)
       if (
         state.lazyLoading.hasMoreBefore &&
         !state.isLoadingBefore &&
-        visibleFromTime <= firstTime + timeThreshold
+        visibleFromTime <= minTime + timeThreshold
       ) {
-        requestHistory(seriesId, firstTime, 'before');
+        requestHistory(seriesId, minTime, 'before');
       }
 
       // Check if we're near the end (visible range approaching last data point)
       if (
         state.lazyLoading.hasMoreAfter &&
         !state.isLoadingAfter &&
-        visibleToTime >= lastTime - timeThreshold
+        visibleToTime >= maxTime - timeThreshold
       ) {
-        requestHistory(seriesId, lastTime, 'after');
+        requestHistory(seriesId, maxTime, 'after');
       }
     });
   }
