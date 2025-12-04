@@ -531,6 +531,9 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
 
   emit('dataLoaded', seriesId, normalizedData.length);
 
+  // Sync lazy-loading bounds after data update (critical for live data)
+  lazyLoadingState?.syncBounds(seriesId);
+
   // Only auto-fit on initial load, not on every update/merge
   if (props.autoFit && (isInitialLoad || !initialFitDone)) {
     chart.value?.timeScale().fitContent();

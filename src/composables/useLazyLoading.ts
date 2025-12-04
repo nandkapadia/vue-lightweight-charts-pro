@@ -105,6 +105,8 @@ export interface UseLazyLoadingMethods {
   ) => void;
   /** Reset all loading states */
   reset: () => void;
+  /** Manually sync bounds for a series after data changes */
+  syncBounds: (seriesId: string) => void;
 }
 
 /**
@@ -485,6 +487,35 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
     subscribeToChart();
   }
 
+  /**
+   * Manually sync bounds for a specific series after data mutation.
+   * Call this after live data updates to ensure lazy-loading boundaries are current.
+   */
+  function syncBounds(seriesId: string): void {
+    const state = loadingStates.value.get(seriesId);
+    if (!state) return;
+
+    // Find the series config to get updated data boundaries
+    const config = seriesConfigs.value.find(
+      (c, i) => (c.seriesId || c.name || `series_${i}`) === seriesId
+    );
+
+    if (config?.data?.length) {
+      const firstDataTime = config.data[0]?.time;
+      const lastDataTime = config.data[config.data.length - 1]?.time;
+
+      if (firstDataTime) {
+        state.minTime = normalizeTime(firstDataTime);
+      }
+      if (lastDataTime) {
+        state.maxTime = normalizeTime(lastDataTime);
+      }
+
+      // Recalculate average bar spacing with new data
+      state.averageBarSpacing = calculateAverageBarSpacing(config.data);
+    }
+  }
+
   // Watch for chart changes - immediate to subscribe if chart is already set
   watch(
     chart,
@@ -523,6 +554,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
     requestHistory,
     handleHistoryResponse,
     reset,
+    syncBounds,
   };
 }
 
