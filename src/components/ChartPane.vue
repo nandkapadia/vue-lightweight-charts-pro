@@ -16,21 +16,19 @@ import {
   type ShallowRef,
 } from 'vue';
 import {
-  LineSeries,
-  AreaSeries,
-  CandlestickSeries,
-  BarSeries,
-  HistogramSeries,
-  BaselineSeries,
-} from 'lightweight-charts';
-import type {
-  IChartApi,
-  ISeriesApi,
-  SeriesType,
-  SeriesPartialOptionsMap,
+  createSeriesMarkers,
+  type IChartApi,
+  type ISeriesApi,
+  type SeriesType,
 } from 'lightweight-charts';
 import type { SeriesConfig, DataPoint } from '../types';
-import { logger } from '@lightweight-charts-pro/core';
+import {
+  createSeriesWithConfig,
+  type ExtendedSeriesApi,
+  type ExtendedSeriesConfig,
+  createAnnotationVisualElements,
+  logger,
+} from '@lightweight-charts-pro/core';
 
 // Define props
 const props = defineProps({
@@ -78,12 +76,13 @@ const emit = defineEmits<{
 
 // Inject chart from parent
 const chart = inject<ShallowRef<IChartApi | null>>('chart');
-const globalSeriesMap = inject<ShallowRef<Map<string, ISeriesApi<SeriesType>>>>('seriesMap');
+const globalSeriesMap = inject<ShallowRef<Map<string, ExtendedSeriesApi>>>('seriesMap');
 
 // Local state
-const localSeriesMap = ref<Map<string, ISeriesApi<SeriesType>>>(new Map());
+const localSeriesMap = ref<Map<string, ExtendedSeriesApi>>(new Map());
 const isCollapsed = ref(props.collapsed);
 let seriesIdCounter = 0; // Counter for generating unique series IDs
+let chartLevelAnnotationMarkers: any[] = []; // Chart-level annotations for this pane
 
 const computedHeight = computed(() => {
   if (typeof props.height === 'number') {
@@ -99,9 +98,11 @@ const computedHeight = computed(() => {
 });
 
 /**
- * Create a series on the chart for this pane.
+ * Create a series on the chart for this pane using the unified factory.
+ * This ensures consistent behavior with LightweightChart and supports all series types,
+ * markers, price lines, trades, annotations, and custom series.
  */
-function createSeries(config: SeriesConfig): ISeriesApi<SeriesType> | null {
+function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
   if (!chart?.value) return null;
 
   const seriesId = config.seriesId || config.name || `pane${props.paneId}_series_${seriesIdCounter++}`;
@@ -111,63 +112,76 @@ function createSeries(config: SeriesConfig): ISeriesApi<SeriesType> | null {
     return localSeriesMap.value.get(seriesId) || null;
   }
 
-  let series: ISeriesApi<SeriesType>;
-  const seriesType = config.seriesType.toLowerCase();
+  try {
+    // Build extended config with paneId (matching the format expected by unified factory)
+    const extendedConfig: ExtendedSeriesConfig = {
+      type: config.seriesType,
+      data: config.data || [],
+      options: config.options || {},
+      paneId: props.paneId,
+      seriesId,
+      markers: config.markers,
+      priceLines: config.priceLines as any,
+      trades: config.trades as any,
+      annotations: config.annotations as any,
+    };
 
-  // Series options (paneId is passed as third parameter to addSeries)
-  const options = {
-    ...config.options,
-  };
+    // Use unified factory to create series (handles all types including custom series)
+    const series = createSeriesWithConfig(chart.value, extendedConfig);
 
-  switch (seriesType) {
-    case 'line':
-      series = chart.value.addSeries(
-        LineSeries, options as SeriesPartialOptionsMap['Line'], props.paneId
-      );
-      break;
-    case 'area':
-      series = chart.value.addSeries(
-        AreaSeries, options as SeriesPartialOptionsMap['Area'], props.paneId
-      );
-      break;
-    case 'candlestick':
-      series = chart.value.addSeries(
-        CandlestickSeries, options as SeriesPartialOptionsMap['Candlestick'], props.paneId
-      );
-      break;
-    case 'bar':
-      series = chart.value.addSeries(
-        BarSeries, options as SeriesPartialOptionsMap['Bar'], props.paneId
-      );
-      break;
-    case 'histogram':
-      series = chart.value.addSeries(
-        HistogramSeries, options as SeriesPartialOptionsMap['Histogram'], props.paneId
-      );
-      break;
-    case 'baseline':
-      series = chart.value.addSeries(
-        BaselineSeries, options as SeriesPartialOptionsMap['Baseline'], props.paneId
-      );
-      break;
-    default:
-      logger.warn(`Unknown series type: ${config.seriesType}`, 'ChartPane');
+    if (!series) {
+      logger.error(`Failed to create series: ${config.seriesType}`, 'ChartPane');
       return null;
-  }
+    }
 
-  // Set data if available
-  if (config.data?.length) {
-    series.setData(config.data as Parameters<typeof series.setData>[0]);
-  }
+    // Apply chart-level annotations if any
+    if (chartLevelAnnotationMarkers.length || config.markers?.length || config.annotations?.length) {
+      const allMarkers: any[] = [];
 
-  // Store in local and global maps
-  localSeriesMap.value.set(seriesId, series);
-  if (globalSeriesMap?.value) {
-    globalSeriesMap.value.set(seriesId, series);
-  }
+      // Add config markers
+      if (config.markers?.length) {
+        allMarkers.push(...config.markers);
+      }
 
-  emit('seriesAdded', seriesId, series);
-  return series;
+      // Add series-level annotations
+      if (config.annotations?.length) {
+        try {
+          const annotationVisuals = createAnnotationVisualElements(config.annotations as any);
+          if (annotationVisuals.markers?.length) {
+            allMarkers.push(...annotationVisuals.markers);
+          }
+        } catch (err) {
+          logger.error('Failed to create series annotations', 'ChartPane', err);
+        }
+      }
+
+      // Add pane-level annotations
+      if (chartLevelAnnotationMarkers.length) {
+        allMarkers.push(...chartLevelAnnotationMarkers);
+      }
+
+      // Apply all markers
+      if (allMarkers.length) {
+        try {
+          createSeriesMarkers(series, allMarkers);
+        } catch (err) {
+          logger.error('Failed to apply markers', 'ChartPane', err);
+        }
+      }
+    }
+
+    // Store in local and global maps
+    localSeriesMap.value.set(seriesId, series);
+    if (globalSeriesMap?.value) {
+      globalSeriesMap.value.set(seriesId, series);
+    }
+
+    emit('seriesAdded', seriesId, series);
+    return series;
+  } catch (err) {
+    logger.error(`Failed to create series ${config.seriesType}`, 'ChartPane', err);
+    return null;
+  }
 }
 
 /**
