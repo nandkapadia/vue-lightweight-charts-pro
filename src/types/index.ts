@@ -2,6 +2,20 @@
  * @fileoverview Type exports for the Vue3 Lightweight Charts package.
  */
 
+// Enums
+export {
+  SeriesType,
+  CustomSeriesType,
+  MarkerShape,
+  MarkerPosition,
+  LineStyle,
+  TradeStyle,
+  AnnotationType,
+  CornerPosition,
+  RequestDirection,
+} from './enums';
+export type { AllSeriesTypes } from './enums';
+
 // API types
 export type {
   ChunkInfo,

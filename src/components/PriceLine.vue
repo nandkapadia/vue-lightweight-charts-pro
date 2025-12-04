@@ -74,14 +74,17 @@ function createPriceLine() {
   }
 }
 
-// Watch for price changes
-watch(() => props.price, () => {
-  createPriceLine();
-});
-
-// Watch for style changes
+// Watch for all prop changes and recreate price line
 watch(
-  () => ({ color: props.color, lineWidth: props.lineWidth, lineStyle: props.lineStyle }),
+  () => ({
+    price: props.price,
+    color: props.color,
+    lineWidth: props.lineWidth,
+    lineStyle: props.lineStyle,
+    lineVisible: props.lineVisible,
+    axisLabelVisible: props.axisLabelVisible,
+    title: props.title,
+  }),
   () => {
     createPriceLine();
   },

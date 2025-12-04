@@ -25,7 +25,7 @@
  * </LightweightChart>
  */
 
-import { inject, onMounted, type Ref } from 'vue';
+import { inject, onMounted, onUnmounted, watch, type Ref } from 'vue';
 import type { ExtendedSeriesApi } from '@lightweight-charts-pro/core';
 import { createAnnotationVisualElements, logger } from '@lightweight-charts-pro/core';
 import { createSeriesMarkers } from 'lightweight-charts';
@@ -57,7 +57,12 @@ const props = withDefaults(defineProps<Props>(), {
 
 const series = inject<Ref<ExtendedSeriesApi | null>>('series', null as any);
 
-onMounted(() => {
+let annotationMarkers: any[] = [];
+
+/**
+ * Create or update annotation.
+ */
+function createOrUpdateAnnotation() {
   // Can work with or without series (chart-level vs series-level)
   if (!series?.value) {
     logger.warn('No series found. Chart-level annotations not yet fully implemented.', 'Annotation');
@@ -84,10 +89,19 @@ onMounted(() => {
     // Create annotation visual elements
     const annotationVisuals = createAnnotationVisualElements([annotationConfig as any]);
 
-    // Apply markers
+    // Remove old markers first
+    if (annotationMarkers.length > 0) {
+      const existingMarkers = (series.value as any).markers?.() || [];
+      const filtered = existingMarkers.filter((m: any) => !annotationMarkers.includes(m));
+      createSeriesMarkers(series.value, filtered);
+      annotationMarkers = [];
+    }
+
+    // Apply new markers
     if (annotationVisuals.markers?.length && series.value) {
       const existingMarkers = (series.value as any).markers?.() || [];
       createSeriesMarkers(series.value, [...existingMarkers, ...annotationVisuals.markers]);
+      annotationMarkers = annotationVisuals.markers;
     }
 
     // Log shapes and texts (full rendering pending)
@@ -100,5 +114,48 @@ onMounted(() => {
   } catch (error) {
     logger.error('Failed to create annotation', 'Annotation', error);
   }
+}
+
+/**
+ * Remove annotation.
+ */
+function removeAnnotation() {
+  if (!series?.value || annotationMarkers.length === 0) return;
+
+  try {
+    const existingMarkers = (series.value as any).markers?.() || [];
+    const filtered = existingMarkers.filter((m: any) => !annotationMarkers.includes(m));
+    createSeriesMarkers(series.value, filtered);
+    annotationMarkers = [];
+  } catch (error) {
+    logger.error('Failed to remove annotation', 'Annotation', error);
+  }
+}
+
+// Watch for prop changes
+watch(
+  () => ({
+    time: props.time,
+    price: props.price,
+    text: props.text,
+    type: props.type,
+    position: props.position,
+    color: props.color,
+    textColor: props.textColor,
+    backgroundColor: props.backgroundColor,
+    fontSize: props.fontSize,
+  }),
+  () => {
+    createOrUpdateAnnotation();
+  },
+  { deep: true }
+);
+
+onMounted(() => {
+  createOrUpdateAnnotation();
+});
+
+onUnmounted(() => {
+  removeAnnotation();
 });
 </script>

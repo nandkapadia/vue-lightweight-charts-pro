@@ -23,7 +23,7 @@
  * </CandlestickSeries>
  */
 
-import { inject, onMounted, type Ref } from 'vue';
+import { inject, onMounted, onUnmounted, watch, type Ref } from 'vue';
 import type { ExtendedSeriesApi } from '@lightweight-charts-pro/core';
 import { createTradeVisualElements, logger } from '@lightweight-charts-pro/core';
 import { createSeriesMarkers } from 'lightweight-charts';
@@ -57,7 +57,12 @@ const props = withDefaults(defineProps<Props>(), {
 
 const series = inject<Ref<ExtendedSeriesApi | null>>('series');
 
-onMounted(() => {
+let tradeMarkers: any[] = [];
+
+/**
+ * Create or update trade visualization.
+ */
+function createOrUpdateTrade() {
   if (!series?.value) {
     logger.warn('Series instance not available. Make sure Trade is a child of a Series component.', 'Trade');
     return;
@@ -95,10 +100,19 @@ onMounted(() => {
       seriesData
     );
 
-    // Apply markers
+    // Remove old markers first
+    if (tradeMarkers.length > 0) {
+      const existingMarkers = (series.value as any).markers?.() || [];
+      const filtered = existingMarkers.filter((m: any) => !tradeMarkers.includes(m));
+      createSeriesMarkers(series.value, filtered);
+      tradeMarkers = [];
+    }
+
+    // Apply new markers
     if (tradeVisuals.markers?.length) {
       const existingMarkers = (series.value as any).markers?.() || [];
       createSeriesMarkers(series.value, [...existingMarkers, ...tradeVisuals.markers]);
+      tradeMarkers = tradeVisuals.markers;
     }
 
     // Note: Rectangles are handled by core's RectangleOverlayPlugin
@@ -106,5 +120,47 @@ onMounted(() => {
   } catch (error) {
     logger.error('Failed to create trade visualization', 'Trade', error);
   }
+}
+
+/**
+ * Remove trade visualization.
+ */
+function removeTrade() {
+  if (!series?.value || tradeMarkers.length === 0) return;
+
+  try {
+    const existingMarkers = (series.value as any).markers?.() || [];
+    const filtered = existingMarkers.filter((m: any) => !tradeMarkers.includes(m));
+    createSeriesMarkers(series.value, filtered);
+    tradeMarkers = [];
+  } catch (error) {
+    logger.error('Failed to remove trade visualization', 'Trade', error);
+  }
+}
+
+// Watch for prop changes
+watch(
+  () => ({
+    entry: props.entry,
+    exit: props.exit,
+    profitable: props.profitable,
+    pnl: props.pnl,
+    pnlPercentage: props.pnlPercentage,
+    tradeType: props.tradeType,
+    style: props.style,
+    showAnnotations: props.showAnnotations,
+  }),
+  () => {
+    createOrUpdateTrade();
+  },
+  { deep: true }
+);
+
+onMounted(() => {
+  createOrUpdateTrade();
+});
+
+onUnmounted(() => {
+  removeTrade();
 });
 </script>

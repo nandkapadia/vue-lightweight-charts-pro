@@ -27,9 +27,11 @@ import {
   type TimeChartOptions,
 } from 'lightweight-charts';
 import type { ChartOptions, SeriesConfig, DataPoint, Annotation } from '../types';
+import { RequestDirection } from '../types';
 import { useChartApi } from '../composables/useChartApi';
 import { useChartWebSocket } from '../composables/useChartWebSocket';
 import { useLazyLoading } from '../composables/useLazyLoading';
+import { normalizeDataPoints } from '../utils/time';
 
 // Import from core package for custom series and features
 import {
@@ -157,12 +159,17 @@ const seriesConfigs = ref<SeriesConfig[]>([...props.series]);
 const isInitialized = ref(false);
 const error = ref<string | null>(null);
 
+// Track pending history requests to preserve direction
+// Key: `${seriesId}_${paneId}`, Value: direction
+const pendingHistoryRequests = new Map<string, 'before' | 'after'>();
+
 // Primitives (legends and range switchers) created from config
 const legendPrimitives: LegendPrimitive[] = [];
 const rangeSwitcherPrimitives: RangeSwitcherPrimitive[] = [];
 
 // Cleanup references
 let resizeObserver: ResizeObserver | null = null;
+let initialFitDone = false; // Track if initial auto-fit has been done
 
 
 // API composable
@@ -181,7 +188,11 @@ const ws = props.wsUrl
         onDisconnected: () => emit('disconnected'),
         onError: (err) => emit('error', err),
         onHistoryResponse: (response) => {
-          const direction = response.hasMoreBefore ? 'before' : 'after';
+          // Get the actual request direction from pending requests
+          const requestKey = `${response.seriesId}_${response.paneId || 0}`;
+          const direction = pendingHistoryRequests.get(requestKey) || RequestDirection.Before;
+          pendingHistoryRequests.delete(requestKey);
+
           if (response.data?.length) {
             mergeHistoryData(response.seriesId, response.data, direction);
           }
@@ -206,6 +217,10 @@ const lazyLoadingState = props.lazyLoading
       chart,
       seriesConfigs,
       onRequestHistory: (seriesId, paneId, beforeTime, direction, count) => {
+        // Track the request direction
+        const requestKey = `${seriesId}_${paneId}`;
+        pendingHistoryRequests.set(requestKey, direction);
+
         if (ws) {
           ws.requestHistory(paneId, seriesId, beforeTime, count, direction);
         } else {
@@ -224,6 +239,10 @@ const lazyLoadingState = props.lazyLoading
               error.value = err instanceof Error ? err.message : 'Failed to load history';
               emit('error', err instanceof Error ? err : new Error(String(err)));
               lazyLoadingState?.handleHistoryResponse(seriesId, direction, false, false);
+            })
+            .finally(() => {
+              // Clean up pending request
+              pendingHistoryRequests.delete(requestKey);
             });
         }
       },
@@ -367,7 +386,7 @@ function removeSeries(seriesId: string): void {
 /**
  * Update series data.
  */
-function updateSeriesData(seriesId: string, data: DataPoint[]): void {
+function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = false): void {
   const series = seriesMap.value.get(seriesId);
   if (series) {
     series.setData(data as Parameters<typeof series.setData>[0]);
@@ -382,14 +401,17 @@ function updateSeriesData(seriesId: string, data: DataPoint[]): void {
 
     emit('dataLoaded', seriesId, data.length);
 
-    if (props.autoFit) {
+    // Only auto-fit on initial load, not on every update/merge
+    if (props.autoFit && (isInitialLoad || !initialFitDone)) {
       chart.value?.timeScale().fitContent();
+      initialFitDone = true;
     }
   }
 }
 
 /**
  * Merge history data into existing series data.
+ * Uses shared time normalization to handle both strings and ms/s timestamps.
  */
 function mergeHistoryData(
   seriesId: string,
@@ -401,36 +423,23 @@ function mergeHistoryData(
   );
   if (configIndex < 0) return;
 
-  type NormalizedPoint = DataPoint & { time: number };
-
-  const normalizeTime = (time: number | string): number => {
-    if (typeof time === 'string') {
-      return Math.floor(Date.parse(String(time)) / 1000);
-    }
-    return time;
-  };
-
-  const normalizeData = (data: DataPoint[] = []): NormalizedPoint[] =>
-    data.map((point) => ({
-      ...point,
-      time: normalizeTime(point.time),
-    }));
-
   const config = seriesConfigs.value[configIndex];
-  const existingData = normalizeData(config.data || []);
-  const incomingData = normalizeData(newData || []);
+  const existingData = normalizeDataPoints(config.data || []);
+  const incomingData = normalizeDataPoints(newData || []);
 
-  const merged: NormalizedPoint[] = direction === 'before'
+  const merged = direction === RequestDirection.Before
     ? [...incomingData, ...existingData]
     : [...existingData, ...incomingData];
 
-  const deduplicated: NormalizedPoint[] = Array.from(
+  // Deduplicate by time (later entries win)
+  const deduplicated = Array.from(
     new Map(merged.map((point) => [point.time, point])).values()
   );
 
   deduplicated.sort((a, b) => a.time - b.time);
 
-  updateSeriesData(seriesId, deduplicated);
+  // Don't trigger auto-fit on history merges (only on initial load)
+  updateSeriesData(seriesId, deduplicated, false);
 }
 
 /**
@@ -591,14 +600,18 @@ watch(
   { deep: true }
 );
 
-// Watch for series changes
+// Watch for series array identity changes (shallow watch)
+// This avoids recreating all series when nested data changes.
+// Users should replace the entire series array for updates.
 watch(
   () => props.series,
-  (newSeries) => {
-    seriesConfigs.value = [...newSeries];
-    initializeSeries();
-  },
-  { deep: true }
+  (newSeries, oldSeries) => {
+    // Only reinitialize if the array reference changed
+    if (newSeries !== oldSeries) {
+      seriesConfigs.value = [...newSeries];
+      initializeSeries();
+    }
+  }
 );
 
 // Watch for legends changes (config-driven like Streamlit)
