@@ -151,6 +151,9 @@ export function useChartApi(options: UseChartApiOptions = {}): UseChartApiReturn
   const error = ref<string | null>(null);
   const data = shallowRef<unknown>(null);
 
+  // Track concurrent requests with a reference counter
+  let loadingRefCount = 0;
+
   /**
    * Make an HTTP request to the API.
    */
@@ -158,6 +161,8 @@ export function useChartApi(options: UseChartApiOptions = {}): UseChartApiReturn
     endpoint: string,
     init?: RequestInit
   ): Promise<T> {
+    // Increment refcount and set loading state
+    loadingRefCount++;
     isLoading.value = true;
     error.value = null;
 
@@ -207,7 +212,12 @@ export function useChartApi(options: UseChartApiOptions = {}): UseChartApiReturn
       throw err;
     } finally {
       clearTimeout(timeoutId);
-      isLoading.value = false;
+      // Decrement refcount and only set loading to false when all requests complete
+      loadingRefCount--;
+      if (loadingRefCount <= 0) {
+        loadingRefCount = 0; // Prevent negative values
+        isLoading.value = false;
+      }
     }
   }
 
