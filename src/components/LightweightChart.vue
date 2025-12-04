@@ -127,6 +127,21 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  /** Show loading indicator during data fetches */
+  showLoadingIndicator: {
+    type: Boolean,
+    default: true,
+  },
+  /** Show error indicator when requests fail */
+  showErrorIndicator: {
+    type: Boolean,
+    default: true,
+  },
+  /** Show empty state when no data */
+  showEmptyState: {
+    type: Boolean,
+    default: true,
+  },
 });
 
 // Define emits
@@ -257,6 +272,20 @@ const lazyLoadingState = props.lazyLoading
 // Provide chart instance to child components
 provide('chart', chart);
 provide('seriesMap', seriesMap);
+
+// Computed states for UI indicators
+const isLoadingData = computed(() => {
+  return api.isLoading.value || (lazyLoadingState?.isLoading.value ?? false);
+});
+
+const errorMessage = computed(() => {
+  return api.error.value || error.value;
+});
+
+const isEmptyState = computed(() => {
+  // Empty if initialized but no series have data
+  return isInitialized.value && seriesConfigs.value.every((s) => !s.data?.length);
+});
 
 /**
  * Create and initialize the chart.
@@ -830,6 +859,45 @@ defineExpose({
     class="lightweight-chart-container"
     :class="containerClass"
   >
+    <!-- Loading Indicator -->
+    <div
+      v-if="showLoadingIndicator && isLoadingData"
+      class="chart-indicator chart-loading"
+    >
+      <slot name="loading">
+        <div class="chart-indicator-content">
+          <span class="loading-spinner"></span>
+          <span class="loading-text">Loading data...</span>
+        </div>
+      </slot>
+    </div>
+
+    <!-- Error Indicator -->
+    <div
+      v-if="showErrorIndicator && errorMessage"
+      class="chart-indicator chart-error"
+    >
+      <slot name="error" :error="errorMessage">
+        <div class="chart-indicator-content">
+          <span class="error-icon">⚠️</span>
+          <span class="error-text">{{ errorMessage }}</span>
+        </div>
+      </slot>
+    </div>
+
+    <!-- Empty State Indicator -->
+    <div
+      v-if="showEmptyState && isEmptyState && !isLoadingData && !errorMessage"
+      class="chart-indicator chart-empty"
+    >
+      <slot name="empty">
+        <div class="chart-indicator-content">
+          <span class="empty-icon">📊</span>
+          <span class="empty-text">No data available</span>
+        </div>
+      </slot>
+    </div>
+
     <slot />
   </div>
 </template>
@@ -838,5 +906,96 @@ defineExpose({
 .lightweight-chart-container {
   width: 100%;
   position: relative;
+}
+
+/* Indicator positioning and base styles */
+.chart-indicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  pointer-events: none;
+  animation: fadeIn 0.2s ease-in;
+}
+
+.chart-indicator-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(4px);
+}
+
+/* Loading indicator */
+.chart-loading .chart-indicator-content {
+  background: rgba(59, 130, 246, 0.95);
+  color: white;
+}
+
+.loading-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.loading-text {
+  font-weight: 500;
+}
+
+/* Error indicator */
+.chart-error .chart-indicator-content {
+  background: rgba(239, 68, 68, 0.95);
+  color: white;
+}
+
+.error-icon {
+  font-size: 14px;
+}
+
+.error-text {
+  font-weight: 500;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Empty state indicator */
+.chart-empty .chart-indicator-content {
+  background: rgba(156, 163, 175, 0.95);
+  color: white;
+}
+
+.empty-icon {
+  font-size: 14px;
+}
+
+.empty-text {
+  font-weight: 500;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
