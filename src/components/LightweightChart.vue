@@ -793,8 +793,28 @@ watch(
         if (!config) return;
 
         const allMarkers: any[] = [];
-        if (config.markers?.length) allMarkers.push(...config.markers);
-        if (chartLevelAnnotationMarkers.length) allMarkers.push(...chartLevelAnnotationMarkers);
+
+        // 1. Add explicit markers from config
+        if (config.markers?.length) {
+          allMarkers.push(...config.markers);
+        }
+
+        // 2. Add series-level annotations (converted to markers)
+        if (config.annotations?.length) {
+          try {
+            const seriesAnnotationVisuals = createAnnotationVisualElements(config.annotations as any);
+            if (seriesAnnotationVisuals.markers?.length) {
+              allMarkers.push(...seriesAnnotationVisuals.markers);
+            }
+          } catch (err) {
+            logger.error(`Failed to convert series annotations for ${seriesId}`, 'LightweightChart', err);
+          }
+        }
+
+        // 3. Add chart-level annotation markers
+        if (chartLevelAnnotationMarkers.length) {
+          allMarkers.push(...chartLevelAnnotationMarkers);
+        }
 
         try {
           createSeriesMarkers(series, allMarkers);
