@@ -326,10 +326,13 @@ function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
   const seriesId = config.seriesId || config.name || `series_${seriesMap.value.size}`;
 
   try {
+    // Normalize data timestamps to ensure consistent time handling (ms/s/string → seconds)
+    const normalizedData = config.data ? normalizeDataPoints(config.data) : [];
+
     // Convert our SeriesConfig to ExtendedSeriesConfig format expected by core
     const extendedConfig: ExtendedSeriesConfig = {
       type: config.seriesType,
-      data: config.data || [],
+      data: normalizedData,
       options: config.options || {},
       paneId: config.paneId ?? 0,
       priceLines: config.priceLines as any,
@@ -392,6 +395,14 @@ function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
       }
     }
 
+    // Update config with normalized data for consistent time handling in lazy loading
+    const configIndex = seriesConfigs.value.findIndex(
+      (c) => (c.seriesId || c.name) === seriesId
+    );
+    if (configIndex >= 0) {
+      seriesConfigs.value[configIndex].data = normalizedData;
+    }
+
     seriesMap.value.set(seriesId, series);
     // Trigger reactivity for shallowRef Map mutation
     triggerRef(seriesMap);
@@ -416,22 +427,25 @@ function removeSeries(seriesId: string): void {
 }
 
 /**
- * Update series data.
+ * Update series data with time normalization.
+ * Normalizes all timestamps to seconds to ensure consistent time handling.
  */
 function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = false): void {
   const series = seriesMap.value.get(seriesId);
   if (series) {
-    series.setData(data as Parameters<typeof series.setData>[0]);
+    // Normalize timestamps to seconds for consistent time handling
+    const normalizedData = normalizeDataPoints(data);
+    series.setData(normalizedData as Parameters<typeof series.setData>[0]);
 
-    // Update config
+    // Update config with normalized data
     const configIndex = seriesConfigs.value.findIndex(
       (c) => (c.seriesId || c.name) === seriesId
     );
     if (configIndex >= 0) {
-      seriesConfigs.value[configIndex].data = data;
+      seriesConfigs.value[configIndex].data = normalizedData;
     }
 
-    emit('dataLoaded', seriesId, data.length);
+    emit('dataLoaded', seriesId, normalizedData.length);
 
     // Only auto-fit on initial load, not on every update/merge
     if (props.autoFit && (isInitialLoad || !initialFitDone)) {
