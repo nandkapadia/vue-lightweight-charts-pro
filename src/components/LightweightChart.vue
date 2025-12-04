@@ -41,6 +41,12 @@ import {
   // Annotation system (for chart-level annotations)
   createAnnotationVisualElements,
 
+  // Primitives (for legends and range switchers)
+  LegendPrimitive,
+  RangeSwitcherPrimitive,
+  TimeRange,
+  type RangeConfig,
+
   // Utilities
   logger,
 } from '@lightweight-charts-pro/core';
@@ -75,6 +81,28 @@ const props = defineProps({
   /** Chart-level annotations */
   annotations: {
     type: Array as PropType<Annotation[]>,
+    default: () => [],
+  },
+  /** Legend configurations (config-driven like Streamlit) */
+  legends: {
+    type: Array as PropType<Array<{
+      text?: string;
+      corner?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+      paneId?: number;
+      valueFormat?: string;
+      style?: Record<string, string | number>;
+      isPanePrimitive?: boolean;
+    }>>,
+    default: () => [],
+  },
+  /** Range switcher configurations (config-driven like Streamlit) */
+  rangeSwitchers: {
+    type: Array as PropType<Array<{
+      ranges?: RangeConfig[];
+      corner?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+      paneId?: number;
+      style?: Record<string, string | number>;
+    }>>,
     default: () => [],
   },
   /** Whether to auto-connect to WebSocket */
@@ -128,6 +156,10 @@ const seriesMap = shallowRef<Map<string, ExtendedSeriesApi>>(new Map());
 const seriesConfigs = ref<SeriesConfig[]>([...props.series]);
 const isInitialized = ref(false);
 const error = ref<string | null>(null);
+
+// Primitives (legends and range switchers) created from config
+const legendPrimitives: LegendPrimitive[] = [];
+const rangeSwitcherPrimitives: RangeSwitcherPrimitive[] = [];
 
 // Cleanup references
 let resizeObserver: ResizeObserver | null = null;
@@ -450,6 +482,96 @@ function initializeSeries(): void {
 }
 
 /**
+ * Initialize legends from config (like Streamlit)
+ */
+function initializeLegends(): void {
+  if (!chart.value || !props.legends.length) return;
+
+  // Clear existing legends (primitives clean up automatically when chart is removed)
+  legendPrimitives.length = 0;
+
+  // Create legends from config
+  props.legends.forEach((legendConfig, index) => {
+    try {
+      const config = {
+        corner: legendConfig.corner ?? 'top-left',
+        text: legendConfig.text ?? '<div style="color: #fff;">$$title$$: $$close$$</div>',
+        valueFormat: legendConfig.valueFormat,
+        isPanePrimitive: legendConfig.isPanePrimitive ?? false,
+        style: legendConfig.style,
+        ...(legendConfig.paneId !== undefined ? { paneId: legendConfig.paneId } : {}),
+      };
+
+      const legendPrimitive = new LegendPrimitive(`legend-${props.chartId}-${index}`, config);
+
+      const targetPaneId = legendConfig.paneId ?? 0;
+      const panes = (chart.value as any).panes?.() || [];
+      const targetPane = panes[targetPaneId] || panes[0];
+
+      if (targetPane && typeof targetPane.attachPrimitive === 'function') {
+        targetPane.attachPrimitive(legendPrimitive);
+        legendPrimitives.push(legendPrimitive);
+        logger.info(`Created legend at ${config.corner}`, 'LightweightChart');
+      } else {
+        logger.warn('Could not attach legend primitive to pane', 'LightweightChart');
+      }
+    } catch (err) {
+      logger.error('Failed to create legend', 'LightweightChart', err);
+    }
+  });
+}
+
+/**
+ * Initialize range switchers from config (like Streamlit)
+ */
+function initializeRangeSwitchers(): void {
+  if (!chart.value || !props.rangeSwitchers.length) return;
+
+  // Clear existing range switchers (primitives clean up automatically when chart is removed)
+  rangeSwitcherPrimitives.length = 0;
+
+  // Create range switchers from config
+  props.rangeSwitchers.forEach((switcherConfig, index) => {
+    try {
+      const defaultRanges = [
+        { text: '1D', range: TimeRange.ONE_DAY },
+        { text: '1W', range: TimeRange.ONE_WEEK },
+        { text: '1M', range: TimeRange.ONE_MONTH },
+        { text: '3M', range: TimeRange.THREE_MONTHS },
+        { text: '6M', range: TimeRange.SIX_MONTHS },
+        { text: '1Y', range: TimeRange.ONE_YEAR },
+        { text: 'All', range: TimeRange.ALL },
+      ];
+
+      const config = {
+        corner: switcherConfig.corner ?? 'top-right',
+        ranges: switcherConfig.ranges ?? defaultRanges,
+        paneId: switcherConfig.paneId ?? 0,
+        style: switcherConfig.style,
+      };
+
+      const rangeSwitcherPrimitive = new RangeSwitcherPrimitive(
+        `range-switcher-${props.chartId}-${index}`,
+        config
+      );
+
+      const panes = (chart.value as any).panes?.() || [];
+      const targetPane = panes[config.paneId] || panes[0];
+
+      if (targetPane && typeof targetPane.attachPrimitive === 'function') {
+        targetPane.attachPrimitive(rangeSwitcherPrimitive);
+        rangeSwitcherPrimitives.push(rangeSwitcherPrimitive);
+        logger.info(`Created range switcher at ${config.corner}`, 'LightweightChart');
+      } else {
+        logger.warn('Could not attach range switcher primitive to pane', 'LightweightChart');
+      }
+    } catch (err) {
+      logger.error('Failed to create range switcher', 'LightweightChart', err);
+    }
+  });
+}
+
+/**
  * Handle resize.
  */
 function handleResize(): void {
@@ -487,10 +609,36 @@ watch(
   }
 );
 
+// Watch for legends changes (config-driven like Streamlit)
+let lastLegendsJson = '';
+watch(
+  () => JSON.stringify(props.legends),
+  (newLegendsJson) => {
+    if (newLegendsJson !== lastLegendsJson) {
+      lastLegendsJson = newLegendsJson;
+      initializeLegends();
+    }
+  }
+);
+
+// Watch for rangeSwitchers changes (config-driven like Streamlit)
+let lastRangeSwitchersJson = '';
+watch(
+  () => JSON.stringify(props.rangeSwitchers),
+  (newRangeSwitchersJson) => {
+    if (newRangeSwitchersJson !== lastRangeSwitchersJson) {
+      lastRangeSwitchersJson = newRangeSwitchersJson;
+      initializeRangeSwitchers();
+    }
+  }
+);
+
 // Lifecycle hooks
 onMounted(() => {
   initializeChart();
   initializeSeries();
+  initializeLegends();
+  initializeRangeSwitchers();
 
   // Auto-connect to WebSocket if enabled
   if (props.autoConnect && ws) {
@@ -511,7 +659,11 @@ onUnmounted(() => {
     resizeObserver = null;
   }
 
-  // Remove chart
+  // Clear primitives (legends and range switchers)
+  legendPrimitives.length = 0;
+  rangeSwitcherPrimitives.length = 0;
+
+  // Remove chart (primitives clean up automatically with chart removal)
   if (chart.value) {
     chart.value.remove();
     chart.value = null;
