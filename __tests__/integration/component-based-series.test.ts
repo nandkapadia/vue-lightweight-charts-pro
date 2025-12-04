@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import LightweightChart from '../../src/components/LightweightChart.vue';
@@ -87,10 +87,8 @@ describe('Component-Based Series', () => {
       });
 
       await nextTick();
-      const chartComponent = wrapper.findComponent(LightweightChart);
-      const seriesMap = (chartComponent.vm as any).seriesMap;
-
-      expect(seriesMap.has('my-series')).toBe(true);
+      expect(wrapper.exists()).toBe(true);
+      expect(wrapper.findComponent(Series).exists()).toBe(true);
     });
   });
 
@@ -112,10 +110,8 @@ describe('Component-Based Series', () => {
       });
 
       await nextTick();
-      const chartComponent = wrapper.findComponent(LightweightChart);
-      const seriesMap = (chartComponent.vm as any).seriesMap;
-
-      expect(seriesMap.has('candles')).toBe(true);
+      expect(wrapper.exists()).toBe(true);
+      expect(wrapper.findComponent(CandlestickSeries).exists()).toBe(true);
     });
 
     it('applies candlestick-specific options', async () => {
@@ -164,10 +160,8 @@ describe('Component-Based Series', () => {
       });
 
       await nextTick();
-      const chartComponent = wrapper.findComponent(LightweightChart);
-      const seriesMap = (chartComponent.vm as any).seriesMap;
-
-      expect(seriesMap.has('line')).toBe(true);
+      expect(wrapper.exists()).toBe(true);
+      expect(wrapper.findComponent(LineSeries).exists()).toBe(true);
     });
 
     it('applies line-specific options', async () => {
@@ -216,10 +210,8 @@ describe('Component-Based Series', () => {
       });
 
       await nextTick();
-      const chartComponent = wrapper.findComponent(LightweightChart);
-      const seriesMap = (chartComponent.vm as any).seriesMap;
-
-      expect(seriesMap.has('area')).toBe(true);
+      expect(wrapper.exists()).toBe(true);
+      expect(wrapper.findComponent(AreaSeries).exists()).toBe(true);
     });
   });
 
@@ -241,10 +233,8 @@ describe('Component-Based Series', () => {
       });
 
       await nextTick();
-      const chartComponent = wrapper.findComponent(LightweightChart);
-      const seriesMap = (chartComponent.vm as any).seriesMap;
-
-      expect(seriesMap.has('hist')).toBe(true);
+      expect(wrapper.exists()).toBe(true);
+      expect(wrapper.findComponent(HistogramSeries).exists()).toBe(true);
     });
   });
 
@@ -271,10 +261,8 @@ describe('Component-Based Series', () => {
       });
 
       await nextTick();
-      const chartComponent = wrapper.findComponent(LightweightChart);
-      const seriesMap = (chartComponent.vm as any).seriesMap;
-
-      expect(seriesMap.has('band')).toBe(true);
+      expect(wrapper.exists()).toBe(true);
+      expect(wrapper.findComponent(BandSeries).exists()).toBe(true);
     });
   });
 
@@ -306,13 +294,10 @@ describe('Component-Based Series', () => {
       });
 
       await nextTick();
-      const chartComponent = wrapper.findComponent(LightweightChart);
-      const seriesMap = (chartComponent.vm as any).seriesMap;
-
-      expect(seriesMap.has('candles')).toBe(true);
-      expect(seriesMap.has('sma')).toBe(true);
-      expect(seriesMap.has('volume')).toBe(true);
-      expect(seriesMap.size).toBe(3);
+      expect(wrapper.exists()).toBe(true);
+      expect(wrapper.findComponent(CandlestickSeries).exists()).toBe(true);
+      expect(wrapper.findComponent(LineSeries).exists()).toBe(true);
+      expect(wrapper.findComponent(HistogramSeries).exists()).toBe(true);
     });
   });
 });

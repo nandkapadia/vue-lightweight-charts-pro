@@ -1,5 +1,7 @@
 <template>
-  <!-- RangeSwitcher is rendered by the primitive directly -->
+  <div style="display: none;">
+    <!-- RangeSwitcher is rendered by the primitive directly - no DOM needed -->
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -29,6 +31,7 @@ import {
   RangeSwitcherPrimitive,
   TimeRange,
   type RangeConfig,
+  logger,
 } from '@lightweight-charts-pro/core';
 
 interface Props {
@@ -63,7 +66,7 @@ let rangeSwitcherPrimitive: RangeSwitcherPrimitive | null = null;
 
 onMounted(() => {
   if (!chart?.value) {
-    console.warn('RangeSwitcher: Chart instance not available. Make sure RangeSwitcher is a child of LightweightChart.');
+    logger.warn('Chart instance not available. Make sure RangeSwitcher is a child of LightweightChart.', 'RangeSwitcher');
     return;
   }
 
@@ -89,10 +92,10 @@ onMounted(() => {
     if (targetPane && typeof targetPane.attachPrimitive === 'function') {
       targetPane.attachPrimitive(rangeSwitcherPrimitive);
     } else {
-      console.warn('RangeSwitcher: Could not attach primitive to pane');
+      logger.warn('Could not attach primitive to pane', 'RangeSwitcher');
     }
   } catch (error) {
-    console.error('Failed to create range switcher:', error);
+    logger.error('Failed to create range switcher', 'RangeSwitcher', error);
   }
 });
 
@@ -102,7 +105,7 @@ onUnmounted(() => {
       // The primitive will clean up automatically when detached
       rangeSwitcherPrimitive = null;
     } catch (error) {
-      console.error('Failed to cleanup range switcher:', error);
+      logger.error('Failed to cleanup range switcher', 'RangeSwitcher', error);
     }
   }
 });

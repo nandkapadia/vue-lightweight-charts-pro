@@ -1,5 +1,8 @@
 <template>
-  <Series type="histogram" v-bind="seriesProps">
+  <Series
+    type="histogram"
+    v-bind="seriesProps"
+  >
     <slot />
   </Series>
 </template>

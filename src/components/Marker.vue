@@ -21,6 +21,7 @@
 import { inject, onMounted, onUnmounted, type Ref } from 'vue';
 import { createSeriesMarkers, type SeriesMarker } from 'lightweight-charts';
 import type { ExtendedSeriesApi } from '@lightweight-charts-pro/core';
+import { logger } from '@lightweight-charts-pro/core';
 
 interface Props {
   time: number | string;
@@ -43,7 +44,7 @@ let marker: SeriesMarker<any> | null = null;
 
 onMounted(() => {
   if (!series?.value) {
-    console.warn('Marker: Series instance not available. Make sure Marker is a child of a Series component.');
+    logger.warn('Series instance not available. Make sure Marker is a child of a Series component.', 'Marker');
     return;
   }
 
@@ -69,7 +70,7 @@ onMounted(() => {
     // Add new marker
     createSeriesMarkers(series.value, [...existingMarkers, marker]);
   } catch (error) {
-    console.error('Failed to create marker:', error);
+    logger.error('Failed to create marker', 'Marker', error);
   }
 });
 

@@ -25,7 +25,7 @@
 
 import { inject, onMounted, type Ref } from 'vue';
 import type { ExtendedSeriesApi } from '@lightweight-charts-pro/core';
-import { createTradeVisualElements } from '@lightweight-charts-pro/core';
+import { createTradeVisualElements, logger } from '@lightweight-charts-pro/core';
 import { createSeriesMarkers } from 'lightweight-charts';
 
 interface TradePoint {
@@ -59,7 +59,7 @@ const series = inject<Ref<ExtendedSeriesApi | null>>('series');
 
 onMounted(() => {
   if (!series?.value) {
-    console.warn('Trade: Series instance not available. Make sure Trade is a child of a Series component.');
+    logger.warn('Series instance not available. Make sure Trade is a child of a Series component.', 'Trade');
     return;
   }
 
@@ -104,7 +104,7 @@ onMounted(() => {
     // Note: Rectangles are handled by core's RectangleOverlayPlugin
     // which is set up by the unified series factory
   } catch (error) {
-    console.error('Failed to create trade visualization:', error);
+    logger.error('Failed to create trade visualization', 'Trade', error);
   }
 });
 </script>

@@ -30,6 +30,7 @@ import type {
   SeriesPartialOptionsMap,
 } from 'lightweight-charts';
 import type { SeriesConfig, DataPoint } from '../types';
+import { logger } from '@lightweight-charts-pro/core';
 
 // Define props
 const props = defineProps({
@@ -150,7 +151,7 @@ function createSeries(config: SeriesConfig): ISeriesApi<SeriesType> | null {
       );
       break;
     default:
-      console.warn(`Unknown series type: ${config.seriesType}`);
+      logger.warn(`Unknown series type: ${config.seriesType}`, 'ChartPane');
       return null;
   }
 

@@ -580,57 +580,43 @@ function handleResize(): void {
   }
 }
 
-// Watch for option changes using JSON comparison to avoid unnecessary deep watching
-// This is more performant than deep: true for large option objects
-let lastOptionsJson = '';
+// Watch for option changes
 watch(
-  () => JSON.stringify(props.options),
-  (newOptionsJson) => {
-    if (newOptionsJson !== lastOptionsJson) {
-      lastOptionsJson = newOptionsJson;
-      if (chart.value && props.options) {
-        chart.value.applyOptions(props.options as DeepPartial<TimeChartOptions>);
-      }
+  () => props.options,
+  (newOptions) => {
+    if (chart.value && newOptions) {
+      chart.value.applyOptions(newOptions as DeepPartial<TimeChartOptions>);
     }
-  }
+  },
+  { deep: true }
 );
 
-// Watch for series changes using JSON comparison
-// Avoids unnecessary re-renders when series data hasn't actually changed
-let lastSeriesJson = '';
+// Watch for series changes
 watch(
-  () => JSON.stringify(props.series),
-  (newSeriesJson) => {
-    if (newSeriesJson !== lastSeriesJson) {
-      lastSeriesJson = newSeriesJson;
-      seriesConfigs.value = [...props.series];
-      initializeSeries();
-    }
-  }
+  () => props.series,
+  (newSeries) => {
+    seriesConfigs.value = [...newSeries];
+    initializeSeries();
+  },
+  { deep: true }
 );
 
 // Watch for legends changes (config-driven like Streamlit)
-let lastLegendsJson = '';
 watch(
-  () => JSON.stringify(props.legends),
-  (newLegendsJson) => {
-    if (newLegendsJson !== lastLegendsJson) {
-      lastLegendsJson = newLegendsJson;
-      initializeLegends();
-    }
-  }
+  () => props.legends,
+  () => {
+    initializeLegends();
+  },
+  { deep: true }
 );
 
 // Watch for rangeSwitchers changes (config-driven like Streamlit)
-let lastRangeSwitchersJson = '';
 watch(
-  () => JSON.stringify(props.rangeSwitchers),
-  (newRangeSwitchersJson) => {
-    if (newRangeSwitchersJson !== lastRangeSwitchersJson) {
-      lastRangeSwitchersJson = newRangeSwitchersJson;
-      initializeRangeSwitchers();
-    }
-  }
+  () => props.rangeSwitchers,
+  () => {
+    initializeRangeSwitchers();
+  },
+  { deep: true }
 );
 
 // Lifecycle hooks

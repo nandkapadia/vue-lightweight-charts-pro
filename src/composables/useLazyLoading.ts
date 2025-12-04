@@ -148,6 +148,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
 
   /**
    * Initialize lazy loading states from series configs.
+   * Preserves existing loading states for in-flight requests.
    */
   function initializeStates(): void {
     const newStates = new Map<string, SeriesLazyState>();
@@ -155,16 +156,38 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
     seriesConfigs.value.forEach((config, index) => {
       if (config.lazyLoading?.enabled) {
         const seriesId = config.seriesId || config.name || `series_${index}`;
-        newStates.set(seriesId, {
-          seriesId,
-          paneId: config.paneId || 0,
-          lazyLoading: { ...config.lazyLoading },
-          isLoadingBefore: false,
-          isLoadingAfter: false,
-          lastRequestTime: 0,
-        });
+        const existingState = loadingStates.value.get(seriesId);
+
+        // Preserve loading state if series already exists and has pending requests
+        if (existingState && (existingState.isLoadingBefore || existingState.isLoadingAfter)) {
+          newStates.set(seriesId, {
+            ...existingState,
+            lazyLoading: { ...config.lazyLoading },
+            paneId: config.paneId || 0,
+          });
+        } else {
+          newStates.set(seriesId, {
+            seriesId,
+            paneId: config.paneId || 0,
+            lazyLoading: { ...config.lazyLoading },
+            isLoadingBefore: false,
+            isLoadingAfter: false,
+            lastRequestTime: 0,
+          });
+        }
       }
     });
+
+    // Clean up pending requests for series that no longer exist
+    const seriesIds = new Set(newStates.keys());
+    const keysToDelete: string[] = [];
+    pendingRequests.value.forEach((key) => {
+      const seriesId = key.split('_')[0];
+      if (!seriesIds.has(seriesId)) {
+        keysToDelete.push(key);
+      }
+    });
+    keysToDelete.forEach((key) => pendingRequests.value.delete(key));
 
     loadingStates.value = newStates;
   }

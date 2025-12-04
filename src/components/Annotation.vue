@@ -27,7 +27,7 @@
 
 import { inject, onMounted, type Ref } from 'vue';
 import type { ExtendedSeriesApi } from '@lightweight-charts-pro/core';
-import { createAnnotationVisualElements } from '@lightweight-charts-pro/core';
+import { createAnnotationVisualElements, logger } from '@lightweight-charts-pro/core';
 import { createSeriesMarkers } from 'lightweight-charts';
 
 interface Props {
@@ -60,7 +60,7 @@ const series = inject<Ref<ExtendedSeriesApi | null>>('series', null as any);
 onMounted(() => {
   // Can work with or without series (chart-level vs series-level)
   if (!series?.value) {
-    console.warn('Annotation: No series found. Chart-level annotations not yet fully implemented.');
+    logger.warn('No series found. Chart-level annotations not yet fully implemented.', 'Annotation');
     return;
   }
 
@@ -92,13 +92,13 @@ onMounted(() => {
 
     // Log shapes and texts (full rendering pending)
     if (annotationVisuals.shapes?.length) {
-      console.log(`Annotation shapes available: ${annotationVisuals.shapes.length}`);
+      logger.warn(`Annotation shapes available: ${annotationVisuals.shapes.length}`, 'Annotation');
     }
     if (annotationVisuals.texts?.length) {
-      console.log(`Annotation texts available: ${annotationVisuals.texts.length}`);
+      logger.warn(`Annotation texts available: ${annotationVisuals.texts.length}`, 'Annotation');
     }
   } catch (error) {
-    console.error('Failed to create annotation:', error);
+    logger.error('Failed to create annotation', 'Annotation', error);
   }
 });
 </script>

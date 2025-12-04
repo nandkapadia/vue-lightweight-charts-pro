@@ -1,5 +1,7 @@
 <template>
-  <!-- Legend is rendered by the primitive directly -->
+  <div style="display: none;">
+    <!-- Legend is rendered by the primitive directly - no DOM needed -->
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -25,7 +27,7 @@
 
 import { onMounted, onUnmounted, inject, type Ref } from 'vue';
 import type { IChartApi } from 'lightweight-charts';
-import { LegendPrimitive } from '@lightweight-charts-pro/core';
+import { LegendPrimitive, logger } from '@lightweight-charts-pro/core';
 
 interface Props {
   /** Legend text template with placeholders ($$title$$, $$value$$, etc.) */
@@ -55,7 +57,7 @@ let legendPrimitive: LegendPrimitive | null = null;
 
 onMounted(() => {
   if (!chart?.value) {
-    console.warn('Legend: Chart instance not available. Make sure Legend is a child of LightweightChart.');
+    logger.warn('Chart instance not available. Make sure Legend is a child of LightweightChart.', 'Legend');
     return;
   }
 
@@ -81,10 +83,10 @@ onMounted(() => {
     if (targetPane && typeof targetPane.attachPrimitive === 'function') {
       targetPane.attachPrimitive(legendPrimitive);
     } else {
-      console.warn('Legend: Could not attach primitive to pane');
+      logger.warn('Could not attach primitive to pane', 'Legend');
     }
   } catch (error) {
-    console.error('Failed to create legend:', error);
+    logger.error('Failed to create legend', 'Legend', error);
   }
 });
 
@@ -94,7 +96,7 @@ onUnmounted(() => {
       // The primitive will clean up automatically when detached
       legendPrimitive = null;
     } catch (error) {
-      console.error('Failed to cleanup legend:', error);
+      logger.error('Failed to cleanup legend', 'Legend', error);
     }
   }
 });

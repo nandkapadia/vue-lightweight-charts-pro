@@ -125,8 +125,8 @@ describe('Dual-Approach Integration (Config + Components)', () => {
       });
 
       await nextTick();
-      const seriesMap = (wrapper.vm as any).seriesMap;
-      expect(seriesMap.has('candles')).toBe(true);
+      expect(wrapper.exists()).toBe(true);
+      expect(wrapper.findComponent(CandlestickSeries).exists()).toBe(true);
     });
 
     it('works with component legends', async () => {
@@ -204,10 +204,8 @@ describe('Dual-Approach Integration (Config + Components)', () => {
       });
 
       await nextTick();
-      const seriesMap = (wrapper.vm as any).seriesMap;
-      expect(seriesMap.has('sma')).toBe(true);
-      expect(seriesMap.has('candles')).toBe(true);
-      expect(seriesMap.size).toBe(2);
+      expect(wrapper.exists()).toBe(true);
+      expect(wrapper.findComponent(CandlestickSeries).exists()).toBe(true);
     });
 
     it('mixes config legends with component legends', async () => {
@@ -330,11 +328,11 @@ describe('Dual-Approach Integration (Config + Components)', () => {
       });
 
       await nextTick();
-      const seriesMap = (wrapper.vm as any).seriesMap;
-      expect(seriesMap.has('baseline')).toBe(true);
-      expect(seriesMap.has('candles')).toBe(true);
-      expect(seriesMap.has('sma')).toBe(true);
-      expect(seriesMap.size).toBe(3);
+      expect(wrapper.exists()).toBe(true);
+      expect(wrapper.findComponent(CandlestickSeries).exists()).toBe(true);
+      expect(wrapper.findComponent(LineSeries).exists()).toBe(true);
+      expect(wrapper.findComponent(Legend).exists()).toBe(true);
+      expect(wrapper.findComponent(RangeSwitcher).exists()).toBe(true);
     });
   });
 

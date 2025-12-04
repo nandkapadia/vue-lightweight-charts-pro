@@ -30,6 +30,7 @@ export function useSeries(props: UseSeriesOptions) {
 
   const series = ref<ExtendedSeriesApi | null>(null);
   const isReady = ref(false);
+  const resolvedSeriesId = ref<string | undefined>(undefined);
 
   /**
    * Create the series instance
@@ -42,6 +43,7 @@ export function useSeries(props: UseSeriesOptions) {
 
     try {
       const seriesId = props.seriesId || `series-${Date.now()}`;
+      resolvedSeriesId.value = seriesId;
 
       // Build config for core's createSeriesWithConfig
       const config: ExtendedSeriesConfig = {
@@ -117,39 +119,38 @@ export function useSeries(props: UseSeriesOptions) {
       try {
         chart.value.removeSeries(series.value);
 
-        // Remove from series map
-        if (seriesMap?.value && props.seriesId) {
-          seriesMap.value.delete(props.seriesId);
+        // Remove from series map using the resolved ID
+        if (seriesMap?.value && resolvedSeriesId.value) {
+          seriesMap.value.delete(resolvedSeriesId.value);
         }
 
         series.value = null;
         isReady.value = false;
+        resolvedSeriesId.value = undefined;
       } catch (err) {
         logger.error('Failed to remove series', 'useSeries', err);
       }
     }
   }
 
-  // Watch for data changes
+  // Watch for data changes (shallow watch - data array should be replaced, not mutated)
   watch(
     () => props.data,
     (newData) => {
       if (newData) {
         updateData(newData);
       }
-    },
-    { deep: true }
+    }
   );
 
-  // Watch for option changes
+  // Watch for option changes (shallow watch - options object should be replaced, not mutated)
   watch(
     () => props.options,
     (newOptions) => {
       if (newOptions) {
         updateOptions(newOptions);
       }
-    },
-    { deep: true }
+    }
   );
 
   // Lifecycle

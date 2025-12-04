@@ -20,6 +20,7 @@
 
 import { inject, onMounted, onUnmounted, watch, type Ref } from 'vue';
 import type { ExtendedSeriesApi } from '@lightweight-charts-pro/core';
+import { logger } from '@lightweight-charts-pro/core';
 import type { IPriceLine } from 'lightweight-charts';
 
 interface Props {
@@ -47,14 +48,15 @@ let priceLine: IPriceLine | null = null;
 
 function createPriceLine() {
   if (!series?.value) {
-    console.warn('PriceLine: Series instance not available. Make sure PriceLine is a child of a Series component.');
+    logger.warn('Series instance not available. Make sure PriceLine is a child of a Series component.', 'PriceLine');
     return;
   }
 
   try {
     // Remove existing price line if it exists
-    if (priceLine) {
+    if (priceLine && series.value) {
       series.value.removePriceLine(priceLine);
+      priceLine = null;
     }
 
     // Create price line
@@ -68,7 +70,7 @@ function createPriceLine() {
       title: props.title,
     } as any);
   } catch (error) {
-    console.error('Failed to create price line:', error);
+    logger.error('Failed to create price line', 'PriceLine', error);
   }
 }
 
@@ -95,7 +97,7 @@ onUnmounted(() => {
     try {
       series.value.removePriceLine(priceLine);
     } catch (error) {
-      console.error('Failed to remove price line:', error);
+      logger.error('Failed to remove price line', 'PriceLine', error);
     }
   }
   priceLine = null;
