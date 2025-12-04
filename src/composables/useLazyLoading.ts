@@ -7,9 +7,27 @@
  */
 
 import { ref, watch, onUnmounted, type Ref } from 'vue';
-import type { IChartApi, LogicalRange } from 'lightweight-charts';
+import type { IChartApi, LogicalRange, Time, BusinessDay } from 'lightweight-charts';
 import type { SeriesConfig, LazyLoadingConfig, DataPoint } from '../types';
 import { normalizeTime } from '../utils/time';
+
+/**
+ * Helper to safely convert Time (UTCTimestamp or BusinessDay) to seconds.
+ * BusinessDay objects need special handling - can't be passed to normalizeTime.
+ */
+function timeToSeconds(time: Time): number {
+  // Check if it's a BusinessDay object
+  if (typeof time === 'object' && time !== null && 'year' in time && 'month' in time && 'day' in time) {
+    const bd = time as BusinessDay;
+    // Convert BusinessDay to UTC timestamp (seconds since epoch)
+    // Treat as midnight UTC of that day
+    const date = new Date(Date.UTC(bd.year, bd.month - 1, bd.day));
+    return Math.floor(date.getTime() / 1000);
+  }
+
+  // Otherwise it's a UTCTimestamp or string - use normalizeTime
+  return normalizeTime(time as any);
+}
 
 /**
  * State for tracking lazy loading per series.
@@ -258,6 +276,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
 
   /**
    * Handle history response and update loading state.
+   * CRITICAL: Also updates cached min/max timestamps from seriesConfigs.
    */
   function handleHistoryResponse(
     seriesId: string,
@@ -280,6 +299,24 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
       state.lazyLoading.hasMoreAfter = hasMoreAfter;
     }
 
+    // CRITICAL: Update cached min/max timestamps after history merge
+    // Find the series config to get updated data boundaries
+    const config = seriesConfigs.value.find(
+      (c, i) => (c.seriesId || c.name || `series_${i}`) === seriesId
+    );
+
+    if (config?.data?.length) {
+      const firstDataTime = config.data[0]?.time;
+      const lastDataTime = config.data[config.data.length - 1]?.time;
+
+      if (firstDataTime) {
+        state.minTime = normalizeTime(firstDataTime);
+      }
+      if (lastDataTime) {
+        state.maxTime = normalizeTime(lastDataTime);
+      }
+    }
+
     // Update global loading state
     isLoading.value = Array.from(loadingStates.value.values()).some(
       (s) => s.isLoadingBefore || s.isLoadingAfter
@@ -300,8 +337,14 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
     if (!visibleRange) return;
 
     // Convert visible range to normalized timestamps (seconds)
-    const visibleFromTime = normalizeTime(visibleRange.from as any);
-    const visibleToTime = normalizeTime(visibleRange.to as any);
+    // Use timeToSeconds to handle both UTCTimestamp and BusinessDay
+    const visibleFromTime = timeToSeconds(visibleRange.from as Time);
+    const visibleToTime = timeToSeconds(visibleRange.to as Time);
+
+    // Validate converted times (check for NaN)
+    if (isNaN(visibleFromTime) || isNaN(visibleToTime)) {
+      return;
+    }
 
     // Time threshold in seconds (convert bar-count threshold to approximate time)
     // Assuming average bar is 60 seconds (1 minute) - could be configurable
