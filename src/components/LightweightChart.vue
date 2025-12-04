@@ -427,31 +427,64 @@ function removeSeries(seriesId: string): void {
 }
 
 /**
- * Update series data with time normalization.
- * Normalizes all timestamps to seconds to ensure consistent time handling.
+ * Update series data with time normalization and incremental updates.
+ * Uses series.update() for incremental changes to avoid O(n) re-sorting on every chunk.
+ * Only uses series.setData() for initial load or full replacement.
  */
 function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = false): void {
   const series = seriesMap.value.get(seriesId);
-  if (series) {
-    // Normalize timestamps to seconds for consistent time handling
-    const normalizedData = normalizeDataPoints(data);
+  if (!series) return;
+
+  // Normalize timestamps to seconds for consistent time handling
+  const normalizedData = normalizeDataPoints(data);
+
+  // Find config
+  const configIndex = seriesConfigs.value.findIndex(
+    (c) => (c.seriesId || c.name) === seriesId
+  );
+
+  if (isInitialLoad || configIndex < 0 || !seriesConfigs.value[configIndex].data?.length) {
+    // Initial load: use setData() for full dataset
     series.setData(normalizedData as Parameters<typeof series.setData>[0]);
 
-    // Update config with normalized data
-    const configIndex = seriesConfigs.value.findIndex(
-      (c) => (c.seriesId || c.name) === seriesId
-    );
     if (configIndex >= 0) {
       seriesConfigs.value[configIndex].data = normalizedData;
     }
+  } else {
+    // Incremental update: use update() for new/changed bars only
+    const existingData = seriesConfigs.value[configIndex].data || [];
+    const existingTimes = new Set(existingData.map((d) => d.time));
 
-    emit('dataLoaded', seriesId, normalizedData.length);
+    // Find new bars (not in existing data)
+    const newBars = normalizedData.filter((bar) => !existingTimes.has(bar.time));
 
-    // Only auto-fit on initial load, not on every update/merge
-    if (props.autoFit && (isInitialLoad || !initialFitDone)) {
-      chart.value?.timeScale().fitContent();
-      initialFitDone = true;
+    // Update existing bars that may have changed (e.g., last bar update)
+    // Only update the last bar if it exists in new data (common for real-time updates)
+    if (existingData.length > 0 && normalizedData.length > 0) {
+      const lastExistingTime = existingData[existingData.length - 1].time;
+      const updatedLastBar = normalizedData.find((bar) => bar.time === lastExistingTime);
+      if (updatedLastBar) {
+        series.update(updatedLastBar as Parameters<typeof series.update>[0]);
+      }
     }
+
+    // Append new bars using update() - O(1) per bar instead of O(n) for entire dataset
+    newBars.forEach((bar) => {
+      series.update(bar as Parameters<typeof series.update>[0]);
+    });
+
+    // Update config with merged data
+    if (configIndex >= 0) {
+      seriesConfigs.value[configIndex].data = normalizedData;
+    }
+  }
+
+  emit('dataLoaded', seriesId, normalizedData.length);
+
+  // Only auto-fit on initial load, not on every update/merge
+  if (props.autoFit && (isInitialLoad || !initialFitDone)) {
+    chart.value?.timeScale().fitContent();
+    initialFitDone = true;
   }
 }
 
