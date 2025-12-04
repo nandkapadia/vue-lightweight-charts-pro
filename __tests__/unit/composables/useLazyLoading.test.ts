@@ -22,6 +22,7 @@ import { useLazyLoading } from '../../../src/composables/useLazyLoading';
 // Mock chart API
 function createMockChart() {
   let rangeChangeHandler: ((range: unknown) => void) | null = null;
+  let visibleRange = { from: 1704067200, to: 1704153600 }; // Default: Jan 1-2, 2024 in seconds
 
   return {
     chart: {
@@ -32,12 +33,17 @@ function createMockChart() {
         unsubscribeVisibleLogicalRangeChange: () => {
           rangeChangeHandler = null;
         },
+        getVisibleRange: () => visibleRange,
       }),
     },
     triggerRangeChange: (range: { from: number; to: number }) => {
+      visibleRange = range;
       rangeChangeHandler?.(range);
     },
     hasHandler: () => rangeChangeHandler !== null,
+    setVisibleRange: (range: { from: number; to: number }) => {
+      visibleRange = range;
+    },
   };
 }
 
@@ -448,12 +454,14 @@ describe('useLazyLoading', () => {
     it('should trigger history request when scrolling near start', async () => {
       const mockChart = createMockChart();
       const chart = ref<unknown>(null);
+      const dataLength = 100;
+      const firstDataTime = 1234567890;
       const seriesConfigs = ref<SeriesConfig[]>([
         {
           seriesId: 'price',
           seriesType: 'candlestick',
-          data: Array(100).fill(null).map((_, i) => ({
-            time: 1234567890 + i * 86400,
+          data: Array(dataLength).fill(null).map((_, i) => ({
+            time: firstDataTime + i * 86400,
             open: 100,
             high: 105,
             low: 98,
@@ -485,8 +493,14 @@ describe('useLazyLoading', () => {
       // Verify subscription was created
       expect(mockChart.hasHandler()).toBe(true);
 
-      // Simulate scrolling near start (from < loadThreshold)
-      mockChart.triggerRangeChange({ from: 10, to: 60 });
+      // Simulate scrolling near start - use time-based values
+      // timeThreshold = 50 bars * 60 seconds = 3000 seconds
+      // Trigger when visible range starts near first data point
+      const timeThreshold = 50 * 60;
+      mockChart.triggerRangeChange({
+        from: firstDataTime - 1000,  // Before first data point
+        to: firstDataTime + timeThreshold + 1000
+      });
 
       // Wait for debounce
       vi.advanceTimersByTime(150);
@@ -494,7 +508,7 @@ describe('useLazyLoading', () => {
       expect(onRequestHistory).toHaveBeenCalledWith(
         'price',
         0,
-        1234567890,
+        firstDataTime,
         'before',
         500
       );
@@ -504,12 +518,14 @@ describe('useLazyLoading', () => {
       const mockChart = createMockChart();
       const chart = ref<unknown>(null);
       const dataLength = 100;
+      const firstDataTime = 1234567890;
+      const lastDataTime = firstDataTime + (dataLength - 1) * 86400;
       const seriesConfigs = ref<SeriesConfig[]>([
         {
           seriesId: 'price',
           seriesType: 'candlestick',
           data: Array(dataLength).fill(null).map((_, i) => ({
-            time: 1234567890 + i * 86400,
+            time: firstDataTime + i * 86400,
             open: 100,
             high: 105,
             low: 98,
@@ -541,13 +557,18 @@ describe('useLazyLoading', () => {
       // Verify subscription was created
       expect(mockChart.hasHandler()).toBe(true);
 
-      // Simulate scrolling near end (to > dataLength - loadThreshold)
-      mockChart.triggerRangeChange({ from: 40, to: 90 });
+      // Simulate scrolling near end - use time-based values
+      // timeThreshold = 50 bars * 60 seconds = 3000 seconds
+      // Trigger when visible range ends near last data point
+      const timeThreshold = 50 * 60;
+      mockChart.triggerRangeChange({
+        from: lastDataTime - timeThreshold - 1000,
+        to: lastDataTime + 1000  // Beyond last data point
+      });
 
       // Wait for debounce
       vi.advanceTimersByTime(150);
 
-      const lastDataTime = 1234567890 + (dataLength - 1) * 86400;
       expect(onRequestHistory).toHaveBeenCalledWith(
         'price',
         0,
@@ -560,12 +581,14 @@ describe('useLazyLoading', () => {
     it('should not trigger request when in middle of data', async () => {
       const mockChart = createMockChart();
       const chart = ref(mockChart.chart as unknown as null);
+      const dataLength = 200;
+      const firstDataTime = 1234567890;
       const seriesConfigs = ref<SeriesConfig[]>([
         {
           seriesId: 'price',
           seriesType: 'candlestick',
-          data: Array(200).fill(null).map((_, i) => ({
-            time: 1234567890 + i * 86400,
+          data: Array(dataLength).fill(null).map((_, i) => ({
+            time: firstDataTime + i * 86400,
             open: 100,
             high: 105,
             low: 98,
@@ -590,8 +613,12 @@ describe('useLazyLoading', () => {
         onRequestHistory,
       });
 
-      // Simulate scrolling in the middle (not near edges)
-      mockChart.triggerRangeChange({ from: 70, to: 120 });
+      // Simulate scrolling in the middle (not near edges) - use time-based values
+      // Show data from day 70 to day 120 (middle of 200 days)
+      mockChart.triggerRangeChange({
+        from: firstDataTime + 70 * 86400,
+        to: firstDataTime + 120 * 86400
+      });
 
       // Wait for debounce
       vi.advanceTimersByTime(150);

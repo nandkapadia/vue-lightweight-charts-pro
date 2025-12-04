@@ -473,8 +473,9 @@ async function refreshSeriesData(paneId: number, seriesId: string): Promise<void
 
 /**
  * Initialize all series from props.
+ * @param shouldAutoFit - Whether to auto-fit the chart after initialization (only on initial mount)
  */
-function initializeSeries(): void {
+function initializeSeries(shouldAutoFit = false): void {
   if (!chart.value) return;
 
   // Clear existing series
@@ -485,8 +486,10 @@ function initializeSeries(): void {
     createSeries(config);
   });
 
-  if (props.autoFit && seriesConfigs.value.some((c) => c.data?.length)) {
+  // Only auto-fit if explicitly requested (e.g., on initial mount) and not already done
+  if (shouldAutoFit && props.autoFit && seriesConfigs.value.some((c) => c.data?.length) && !initialFitDone) {
     chart.value.timeScale().fitContent();
+    initialFitDone = true;
   }
 }
 
@@ -609,7 +612,7 @@ watch(
     // Only reinitialize if the array reference changed
     if (newSeries !== oldSeries) {
       seriesConfigs.value = [...newSeries];
-      initializeSeries();
+      initializeSeries(false); // Don't auto-fit on prop changes
     }
   }
 );
@@ -635,7 +638,7 @@ watch(
 // Lifecycle hooks
 onMounted(() => {
   initializeChart();
-  initializeSeries();
+  initializeSeries(true); // Auto-fit only on initial mount
   initializeLegends();
   initializeRangeSwitchers();
 

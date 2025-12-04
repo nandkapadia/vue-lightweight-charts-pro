@@ -9,6 +9,7 @@
 import { ref, watch, onUnmounted, type Ref } from 'vue';
 import type { IChartApi, LogicalRange } from 'lightweight-charts';
 import type { SeriesConfig, LazyLoadingConfig, DataPoint } from '../types';
+import { normalizeTime } from '../utils/time';
 
 /**
  * State for tracking lazy loading per series.
@@ -269,9 +270,23 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
 
   /**
    * Check if we need to load more data based on visible range.
+   * Uses time-based boundaries instead of logical indices for accuracy with gappy/irregular series.
    */
   function checkAndLoadData(logicalRange: LogicalRange | null): void {
     if (!logicalRange || !chart.value) return;
+
+    // Get visible time range from the chart
+    const timeScale = chart.value.timeScale();
+    const visibleRange = timeScale.getVisibleRange();
+    if (!visibleRange) return;
+
+    // Convert visible range to normalized timestamps (seconds)
+    const visibleFromTime = normalizeTime(visibleRange.from as any);
+    const visibleToTime = normalizeTime(visibleRange.to as any);
+
+    // Time threshold in seconds (convert bar-count threshold to approximate time)
+    // Assuming average bar is 60 seconds (1 minute) - could be configurable
+    const timeThreshold = loadThreshold * 60;
 
     loadingStates.value.forEach((state, seriesId) => {
       if (!state.lazyLoading.enabled) return;
@@ -287,29 +302,26 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
 
       if (!firstDataTime || !lastDataTime) return;
 
-      // Check if we're near the start (need older data)
+      // Normalize data boundary timestamps
+      const firstTime = normalizeTime(firstDataTime);
+      const lastTime = normalizeTime(lastDataTime);
+
+      // Check if we're near the start (visible range approaching first data point)
       if (
         state.lazyLoading.hasMoreBefore &&
         !state.isLoadingBefore &&
-        logicalRange.from < loadThreshold
+        visibleFromTime <= firstTime + timeThreshold
       ) {
-        const beforeTime = typeof firstDataTime === 'number'
-          ? firstDataTime
-          : Date.parse(String(firstDataTime)) / 1000;
-        requestHistory(seriesId, beforeTime, 'before');
+        requestHistory(seriesId, firstTime, 'before');
       }
 
-      // Check if we're near the end (need newer data)
-      const dataLength = seriesConfig.data.length;
+      // Check if we're near the end (visible range approaching last data point)
       if (
         state.lazyLoading.hasMoreAfter &&
         !state.isLoadingAfter &&
-        logicalRange.to > dataLength - loadThreshold
+        visibleToTime >= lastTime - timeThreshold
       ) {
-        const afterTime = typeof lastDataTime === 'number'
-          ? lastDataTime
-          : Date.parse(String(lastDataTime)) / 1000;
-        requestHistory(seriesId, afterTime, 'after');
+        requestHistory(seriesId, lastTime, 'after');
       }
     });
   }
