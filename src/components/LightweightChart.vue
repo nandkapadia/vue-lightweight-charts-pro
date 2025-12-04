@@ -167,6 +167,9 @@ const pendingHistoryRequests = new Map<string, 'before' | 'after'>();
 const legendPrimitives: LegendPrimitive[] = [];
 const rangeSwitcherPrimitives: RangeSwitcherPrimitive[] = [];
 
+// Chart-level annotation visuals to be applied to series
+let chartLevelAnnotationMarkers: any[] = [];
+
 // Cleanup references
 let resizeObserver: ResizeObserver | null = null;
 let initialFitDone = false; // Track if initial auto-fit has been done
@@ -285,14 +288,21 @@ function initializeChart(): void {
     try {
       const annotationVisuals = createAnnotationVisualElements(props.annotations as any);
 
-      // Note: Chart-level annotations require a series to attach to
-      // They will be applied when the first series is created
-      // Store them for later application
-      if (annotationVisuals.markers?.length || annotationVisuals.shapes?.length || annotationVisuals.texts?.length) {
+      // Store chart-level annotation markers to apply to series
+      if (annotationVisuals.markers?.length) {
+        chartLevelAnnotationMarkers = annotationVisuals.markers;
         logger.info(
-          `Chart-level annotations created: ${annotationVisuals.markers.length} markers, ${annotationVisuals.shapes.length} shapes, ${annotationVisuals.texts.length} texts`,
+          `Chart-level annotations created: ${annotationVisuals.markers.length} markers`,
           'LightweightChart'
         );
+      }
+
+      // Log other annotation elements (shapes/texts not yet supported)
+      if (annotationVisuals.shapes?.length) {
+        logger.info(`Annotation shapes available: ${annotationVisuals.shapes.length}`, 'LightweightChart');
+      }
+      if (annotationVisuals.texts?.length) {
+        logger.info(`Text annotations available: ${annotationVisuals.texts.length}`, 'LightweightChart');
       }
     } catch (err) {
       logger.error('Failed to create chart annotations', 'LightweightChart', err);
@@ -337,15 +347,21 @@ function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
       return null;
     }
 
-    // Handle annotations if present
+    // Collect all markers to apply: series annotations + chart-level annotations + config markers
+    const allMarkers: any[] = [];
+
+    // Add config markers
+    if (config.markers?.length) {
+      allMarkers.push(...config.markers);
+    }
+
+    // Add series-level annotations if present
     if (config.annotations?.length) {
       try {
         const annotationVisuals = createAnnotationVisualElements(config.annotations as any);
 
-        // Apply annotation markers (merge with existing markers)
         if (annotationVisuals.markers?.length) {
-          const existingMarkers = config.markers || [];
-          createSeriesMarkers(series, [...existingMarkers, ...annotationVisuals.markers]);
+          allMarkers.push(...annotationVisuals.markers);
         }
 
         // Log other annotation elements (shapes/texts)
@@ -357,6 +373,20 @@ function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
         }
       } catch (err) {
         logger.error('Failed to create annotations', 'LightweightChart', err);
+      }
+    }
+
+    // Add chart-level annotations
+    if (chartLevelAnnotationMarkers.length) {
+      allMarkers.push(...chartLevelAnnotationMarkers);
+    }
+
+    // Apply all markers at once
+    if (allMarkers.length) {
+      try {
+        createSeriesMarkers(series, allMarkers);
+      } catch (err) {
+        logger.error('Failed to apply markers', 'LightweightChart', err);
       }
     }
 
@@ -631,6 +661,51 @@ watch(
   () => props.rangeSwitchers,
   () => {
     initializeRangeSwitchers();
+  },
+  { deep: true }
+);
+
+// Watch for annotations changes (chart-level)
+watch(
+  () => props.annotations,
+  (newAnnotations) => {
+    if (!newAnnotations?.length) {
+      chartLevelAnnotationMarkers = [];
+      // Re-apply markers to all series (without chart-level annotations)
+      seriesMap.value.forEach((series) => {
+        try {
+          createSeriesMarkers(series, []);
+        } catch (err) {
+          logger.error('Failed to clear chart annotations', 'LightweightChart', err);
+        }
+      });
+      return;
+    }
+
+    try {
+      const annotationVisuals = createAnnotationVisualElements(newAnnotations as any);
+      chartLevelAnnotationMarkers = annotationVisuals.markers || [];
+
+      // Re-apply markers to all existing series
+      seriesMap.value.forEach((series, seriesId) => {
+        const config = seriesConfigs.value.find(
+          (c) => (c.seriesId || c.name) === seriesId
+        );
+        if (!config) return;
+
+        const allMarkers: any[] = [];
+        if (config.markers?.length) allMarkers.push(...config.markers);
+        if (chartLevelAnnotationMarkers.length) allMarkers.push(...chartLevelAnnotationMarkers);
+
+        try {
+          createSeriesMarkers(series, allMarkers);
+        } catch (err) {
+          logger.error(`Failed to update annotations for series ${seriesId}`, 'LightweightChart', err);
+        }
+      });
+    } catch (err) {
+      logger.error('Failed to update chart annotations', 'LightweightChart', err);
+    }
   },
   { deep: true }
 );
