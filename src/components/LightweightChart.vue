@@ -160,8 +160,9 @@ const isInitialized = ref(false);
 const error = ref<string | null>(null);
 
 // Track pending history requests to preserve direction
-// Key: `${seriesId}_${paneId}`, Value: direction
-const pendingHistoryRequests = new Map<string, 'before' | 'after'>();
+// Key: `${seriesId}_${paneId}_${direction}`, Value: true (presence indicates pending)
+// Direction is now part of the key to handle concurrent before/after requests
+const pendingHistoryRequests = new Set<string>();
 
 // Primitives (legends and range switchers) created from config
 const legendPrimitives: LegendPrimitive[] = [];
@@ -191,9 +192,10 @@ const ws = props.wsUrl
         onDisconnected: () => emit('disconnected'),
         onError: (err) => emit('error', err),
         onHistoryResponse: (response) => {
-          // Get the actual request direction from pending requests
-          const requestKey = `${response.seriesId}_${response.paneId || 0}`;
-          const direction = pendingHistoryRequests.get(requestKey) || RequestDirection.Before;
+          // Extract direction from response (should be provided by WebSocket message)
+          // Fallback to 'before' if not specified (backward compatibility)
+          const direction = response.direction || RequestDirection.Before;
+          const requestKey = `${response.seriesId}_${response.paneId || 0}_${direction}`;
           pendingHistoryRequests.delete(requestKey);
 
           if (response.data?.length) {
@@ -220,9 +222,9 @@ const lazyLoadingState = props.lazyLoading
       chart,
       seriesConfigs,
       onRequestHistory: (seriesId, paneId, beforeTime, direction, count) => {
-        // Track the request direction
-        const requestKey = `${seriesId}_${paneId}`;
-        pendingHistoryRequests.set(requestKey, direction);
+        // Track the request with direction in the key to support concurrent before/after requests
+        const requestKey = `${seriesId}_${paneId}_${direction}`;
+        pendingHistoryRequests.add(requestKey);
 
         if (ws) {
           ws.requestHistory(paneId, seriesId, beforeTime, count, direction);

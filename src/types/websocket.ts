@@ -110,6 +110,8 @@ export interface HistoryResponseMessage extends BaseMessage {
   hasMoreAfter: boolean;
   /** Total available data points */
   totalCount: number;
+  /** Direction of the history request ('before' or 'after') */
+  direction?: 'before' | 'after';
   /** Error message if request failed */
   error?: string;
 }
