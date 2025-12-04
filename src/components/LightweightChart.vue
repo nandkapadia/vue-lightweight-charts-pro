@@ -34,10 +34,29 @@ import {
   type TimeChartOptions,
   type SeriesPartialOptionsMap,
 } from 'lightweight-charts';
-import type { ChartOptions, SeriesConfig, DataPoint } from '../types';
+import type { ChartOptions, SeriesConfig, DataPoint, Annotation } from '../types';
 import { useChartApi } from '../composables/useChartApi';
 import { useChartWebSocket } from '../composables/useChartWebSocket';
 import { useLazyLoading } from '../composables/useLazyLoading';
+
+// Import from core package for custom series and features
+import {
+  // Custom series creators
+  createBandSeries,
+  createRibbonSeries,
+  createSignalSeries,
+  createTrendFillSeries,
+  createGradientRibbonSeries,
+
+  // Trade visualization
+  createTradeVisualElements,
+
+  // Annotation system
+  createAnnotationVisualElements,
+
+  // Utilities
+  logger,
+} from '@lightweight-charts-pro/core';
 
 // Define props
 const props = defineProps({
@@ -64,6 +83,11 @@ const props = defineProps({
   /** Initial series configurations */
   series: {
     type: Array as PropType<SeriesConfig[]>,
+    default: () => [],
+  },
+  /** Chart-level annotations */
+  annotations: {
+    type: Array as PropType<Annotation[]>,
     default: () => [],
   },
   /** Whether to auto-connect to WebSocket */
@@ -218,6 +242,17 @@ function initializeChart(): void {
     emit('visibleTimeRangeChange', range);
   });
 
+  // Add chart-level annotations if available
+  if (props.annotations?.length) {
+    try {
+      const annotationVisuals = createAnnotationVisualElements(props.annotations as any);
+      // TODO: Apply chart-level annotation visuals
+      logger.info(`Created ${annotationVisuals.markers.length} chart-level annotation markers`, 'LightweightChart');
+    } catch (err) {
+      logger.error('Failed to create chart annotations', 'LightweightChart', err);
+    }
+  }
+
   isInitialized.value = true;
   emit('ready', chart.value);
 }
@@ -269,14 +304,77 @@ function createSeries(config: SeriesConfig): ISeriesApi<SeriesType> | null {
         BaselineSeries, baseOptions as SeriesPartialOptionsMap['Baseline']
       );
       break;
+    // Custom series from @lightweight-charts-pro/core
+    case 'band':
+      series = createBandSeries(chart.value, baseOptions);
+      break;
+    case 'ribbon':
+      series = createRibbonSeries(chart.value, baseOptions);
+      break;
+    case 'signal':
+      series = createSignalSeries(chart.value, baseOptions);
+      break;
+    case 'trendfill':
+      series = createTrendFillSeries(chart.value, baseOptions);
+      break;
+    case 'gradientribbon':
+      series = createGradientRibbonSeries(chart.value, baseOptions);
+      break;
     default:
-      console.warn(`Unknown series type: ${config.seriesType}`);
+      logger.error(`Unknown series type: ${config.seriesType}`, 'LightweightChart');
       return null;
   }
 
   // Set data if available
   if (config.data?.length) {
     series.setData(config.data as Parameters<typeof series.setData>[0]);
+  }
+
+  // Add markers if available (only for series that support markers)
+  if (config.markers?.length && 'setMarkers' in series) {
+    (series as any).setMarkers(config.markers);
+  }
+
+  // Add price lines if available
+  if (config.priceLines?.length) {
+    config.priceLines.forEach((priceLineConfig) => {
+      series.createPriceLine(priceLineConfig as any);
+    });
+  }
+
+  // Add trade visualization if available
+  if (config.trades?.length && config.tradeVisualizationOptions) {
+    try {
+      const tradeVisuals = createTradeVisualElements(
+        config.trades,
+        config.tradeVisualizationOptions,
+        config.data
+      );
+      // Apply trade markers to series
+      if (tradeVisuals.markers?.length && 'setMarkers' in series) {
+        (series as any).setMarkers(tradeVisuals.markers);
+      }
+      // TODO: Apply rectangles and annotations to chart
+      logger.info(`Created ${tradeVisuals.markers.length} trade markers`, 'LightweightChart');
+    } catch (err) {
+      logger.error('Failed to create trade visualizations', 'LightweightChart', err);
+    }
+  }
+
+  // Add annotations if available
+  if (config.annotations?.length) {
+    try {
+      const annotationVisuals = createAnnotationVisualElements(config.annotations as any);
+      // Apply annotation markers to series
+      if (annotationVisuals.markers?.length && 'setMarkers' in series) {
+        const existingMarkers = config.markers || [];
+        (series as any).setMarkers([...existingMarkers, ...annotationVisuals.markers]);
+      }
+      // TODO: Apply shapes and texts to chart
+      logger.info(`Created ${annotationVisuals.markers.length} annotation markers`, 'LightweightChart');
+    } catch (err) {
+      logger.error('Failed to create annotations', 'LightweightChart', err);
+    }
   }
 
   seriesMap.value.set(seriesId, series);

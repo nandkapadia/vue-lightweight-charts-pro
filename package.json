@@ -47,7 +47,7 @@
     "lightweight-charts": "^5.0.0",
     "vue": "^3.4.0"
   },
-  "optionalDependencies": {
+  "dependencies": {
     "@lightweight-charts-pro/core": "file:../lightweight-charts-pro-frontend"
   },
   "devDependencies": {

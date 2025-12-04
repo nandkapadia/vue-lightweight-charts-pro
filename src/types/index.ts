@@ -52,4 +52,17 @@ export type {
   ChartProps,
   ChartEmits,
   ChartState,
+  TradeConfig,
+  TradeVisualizationOptions,
+  PriceLineConfig,
+  Annotation,
 } from './chart';
+
+// Re-export core types for convenience
+export type {
+  BandSeriesOptions,
+  RibbonSeriesOptions,
+  SignalSeriesOptions,
+  TrendFillSeriesOptions,
+  GradientRibbonSeriesOptions,
+} from '@lightweight-charts-pro/core';

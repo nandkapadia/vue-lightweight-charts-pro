@@ -2,8 +2,17 @@
  * @fileoverview TypeScript types for chart configuration and state.
  */
 
-import type { IChartApi, ISeriesApi, SeriesType } from 'lightweight-charts';
+import type { IChartApi, ISeriesApi, SeriesType, Time, SeriesMarker } from 'lightweight-charts';
 import type { ChunkInfo, DataPoint, SeriesOptions } from './api';
+
+// Import types from core package
+import type {
+  BandSeriesOptions,
+  RibbonSeriesOptions,
+  SignalSeriesOptions,
+  TrendFillSeriesOptions,
+  GradientRibbonSeriesOptions,
+} from '@lightweight-charts-pro/core';
 
 /**
  * Lazy loading configuration for a series.
@@ -22,6 +31,98 @@ export interface LazyLoadingConfig {
 }
 
 /**
+ * Trade configuration for visualizing trades on charts.
+ */
+export interface TradeConfig {
+  /** Trade identifier */
+  id: string;
+  /** Entry timestamp */
+  entryTime: string | number;
+  /** Entry price */
+  entryPrice: number;
+  /** Exit timestamp */
+  exitTime: string | number;
+  /** Exit price */
+  exitPrice: number;
+  /** Whether the trade was profitable */
+  isProfitable: boolean;
+  /** Profit/loss amount */
+  pnl?: number;
+  /** Profit/loss percentage */
+  pnlPercentage?: number;
+  /** Additional trade data */
+  [key: string]: unknown;
+}
+
+/**
+ * Options for trade visualization.
+ */
+export interface TradeVisualizationOptions {
+  /** Visualization style */
+  style: 'markers' | 'rectangles' | 'both' | 'lines' | 'arrows' | 'zones';
+
+  // Marker options
+  entryMarkerColorLong?: string;
+  entryMarkerColorShort?: string;
+  exitMarkerColorProfit?: string;
+  exitMarkerColorLoss?: string;
+  markerSize?: number;
+  showPnlInMarkers?: boolean;
+
+  // Rectangle options
+  rectangleFillOpacity?: number;
+  rectangleBorderWidth?: number;
+  rectangleColorProfit?: string;
+  rectangleColorLoss?: string;
+  rectangleShowText?: boolean;
+
+  // Additional options
+  [key: string]: unknown;
+}
+
+/**
+ * Price line configuration.
+ */
+export interface PriceLineConfig {
+  /** Price level */
+  price: number;
+  /** Line color */
+  color?: string;
+  /** Line width */
+  lineWidth?: number;
+  /** Line style */
+  lineStyle?: number;
+  /** Show axis label */
+  axisLabelVisible?: boolean;
+  /** Price line title */
+  title?: string;
+}
+
+/**
+ * Annotation for chart.
+ */
+export interface Annotation {
+  /** Timestamp */
+  time: string | number;
+  /** Price level */
+  price: number;
+  /** Annotation text */
+  text: string;
+  /** Annotation type */
+  type?: 'text' | 'arrow' | 'shape' | 'line' | 'rectangle' | 'circle';
+  /** Position relative to bar */
+  position?: 'aboveBar' | 'belowBar' | 'inBar';
+  /** Text/shape color */
+  color?: string;
+  /** Background color */
+  backgroundColor?: string;
+  /** Font size */
+  fontSize?: number;
+  /** Tooltip text */
+  tooltip?: string;
+}
+
+/**
  * Configuration for a single chart series.
  */
 export interface SeriesConfig {
@@ -29,16 +130,33 @@ export interface SeriesConfig {
   seriesId: string;
   /** Display name for the series */
   name?: string;
-  /** Series type (line, candlestick, area, etc.) */
-  seriesType: SeriesType | string;
+  /** Series type - includes custom series from core package */
+  seriesType:
+    | SeriesType
+    | 'Band'
+    | 'Ribbon'
+    | 'Signal'
+    | 'TrendFill'
+    | 'GradientRibbon'
+    | string;
   /** Pane ID where series is rendered */
   paneId?: number;
   /** Series data points */
   data: DataPoint[];
   /** Series display options */
-  options?: SeriesOptions;
-  /** Lazy loading configuration */
+  options?: SeriesOptions | BandSeriesOptions | RibbonSeriesOptions | SignalSeriesOptions | TrendFillSeriesOptions | GradientRibbonSeriesOptions;
+  /** Lazy loading configuration (Vue-specific for backend integration) */
   lazyLoading?: LazyLoadingConfig;
+  /** Series markers */
+  markers?: SeriesMarker<Time>[];
+  /** Price lines */
+  priceLines?: PriceLineConfig[];
+  /** Trades to visualize */
+  trades?: TradeConfig[];
+  /** Trade visualization options */
+  tradeVisualizationOptions?: TradeVisualizationOptions;
+  /** Annotations for this series */
+  annotations?: Annotation[];
 }
 
 /**
@@ -202,6 +320,8 @@ export interface ChartProps {
   options?: ChartOptions;
   /** Initial series configurations */
   series?: SeriesConfig[];
+  /** Chart-level annotations */
+  annotations?: Annotation[];
   /** Whether to auto-connect to WebSocket */
   autoConnect?: boolean;
   /** CSS class for container */
