@@ -5,26 +5,69 @@
  * millisecond/second confusion that can place data 1000x in the future.
  */
 
+import type { Time, BusinessDay } from 'lightweight-charts';
+
+/**
+ * Check if a value is a BusinessDay object.
+ */
+function isBusinessDay(time: unknown): time is BusinessDay {
+  return (
+    typeof time === 'object' &&
+    time !== null &&
+    'year' in time &&
+    'month' in time &&
+    'day' in time
+  );
+}
+
 /**
  * Normalize any time value to Unix timestamp in seconds.
  *
  * Handles:
+ * - BusinessDay objects → converted to UTC timestamp
  * - String dates (ISO format) → parsed to seconds
  * - Millisecond timestamps (> 1e10) → converted to seconds
  * - Second timestamps → returned as-is
  *
- * @param time - Time value in any format
+ * @param time - Time value in any format (Time union from lightweight-charts)
  * @returns Unix timestamp in seconds
+ * @throws Error if time is unparsable or results in NaN
  *
  * @example
+ * normalizeTime({ year: 2024, month: 1, day: 1 }) // → 1704067200
  * normalizeTime('2024-01-01') // → 1704067200
  * normalizeTime(1704067200000) // → 1704067200 (ms → s)
  * normalizeTime(1704067200)    // → 1704067200 (s → s)
  */
-export function normalizeTime(time: number | string): number {
+export function normalizeTime(time: number | string | Time): number {
+  // Handle BusinessDay objects
+  if (isBusinessDay(time)) {
+    const bd = time as BusinessDay;
+    // Convert BusinessDay to UTC timestamp (midnight of that day)
+    const date = new Date(Date.UTC(bd.year, bd.month - 1, bd.day));
+    const timestamp = Math.floor(date.getTime() / 1000);
+
+    if (isNaN(timestamp)) {
+      throw new Error(`Invalid BusinessDay: ${JSON.stringify(bd)}`);
+    }
+
+    return timestamp;
+  }
+
   if (typeof time === 'string') {
     // Parse string date to seconds
-    return Math.floor(Date.parse(time) / 1000);
+    const parsed = Math.floor(Date.parse(time) / 1000);
+
+    if (isNaN(parsed)) {
+      throw new Error(`Unparsable time string: "${time}"`);
+    }
+
+    return parsed;
+  }
+
+  // Validate numeric timestamp
+  if (typeof time !== 'number' || isNaN(time)) {
+    throw new Error(`Invalid time value: ${time}`);
   }
 
   // Detect milliseconds: if timestamp > 10 billion (Sep 2286 in seconds),
