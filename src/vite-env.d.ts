@@ -1,3 +1,9 @@
+/**
+ * @fileoverview Vite environment type definitions.
+ *
+ * TypeScript definitions for Vite's import.meta.env environment variables.
+ */
+
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {

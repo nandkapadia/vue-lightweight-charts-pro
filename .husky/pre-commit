@@ -1,0 +1,15 @@
+#!/bin/sh
+# Pre-commit hook: Run lint, type-check, and tests
+
+echo "🔍 Running pre-commit checks..."
+
+echo "📝 Linting..."
+npm run lint || exit 1
+
+echo "🔧 Type checking..."
+npm run type-check || exit 1
+
+echo "🧪 Testing..."
+npm test -- --run || exit 1
+
+echo "✅ All checks passed!"
