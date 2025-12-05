@@ -46,8 +46,8 @@ vi.mock('@lightweight-charts-pro/core', () => {
 
   // Mock LegendPrimitive class
   class MockLegendPrimitive {
-    id: string;
-    config: Record<string, unknown>;
+    public readonly id: string;
+    public readonly config: Record<string, unknown>;
     constructor(id: string, config: Record<string, unknown>) {
       this.id = id;
       this.config = config;
@@ -58,8 +58,8 @@ vi.mock('@lightweight-charts-pro/core', () => {
 
   // Mock RangeSwitcherPrimitive class
   class MockRangeSwitcherPrimitive {
-    id: string;
-    config: Record<string, unknown>;
+    public readonly id: string;
+    public readonly config: Record<string, unknown>;
     constructor(id: string, config: Record<string, unknown>) {
       this.id = id;
       this.config = config;
