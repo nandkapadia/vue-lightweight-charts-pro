@@ -14,22 +14,22 @@ import {
   onUnmounted,
   type PropType,
   type ShallowRef,
-} from 'vue';
+} from "vue";
 import {
   createSeriesMarkers,
   type IChartApi,
   type ISeriesApi,
   type SeriesType,
-} from 'lightweight-charts';
-import type { SeriesConfig, DataPoint } from '../types';
+} from "lightweight-charts";
+import type { SeriesConfig, DataPoint } from "../types";
 import {
   createSeriesWithConfig,
   type ExtendedSeriesApi,
   type ExtendedSeriesConfig,
   createAnnotationVisualElements,
   logger,
-} from '@lightweight-charts-pro/core';
-import { normalizeDataPoints } from '../utils/time';
+} from "@lightweight-charts-pro/core";
+import { normalizeDataPoints } from "../utils/time";
 
 // Define props
 const props = defineProps({
@@ -61,42 +61,43 @@ const props = defineProps({
   /** Title for the pane */
   title: {
     type: String,
-    default: '',
+    default: "",
   },
 });
 
 // Define emits
 const emit = defineEmits<{
   /** Emitted when series is added */
-  (e: 'seriesAdded', seriesId: string, series: ISeriesApi<SeriesType>): void;
+  (e: "seriesAdded", seriesId: string, series: ISeriesApi<SeriesType>): void;
   /** Emitted when series is removed */
-  (e: 'seriesRemoved', seriesId: string): void;
+  (e: "seriesRemoved", seriesId: string): void;
   /** Emitted when pane is collapsed/expanded */
-  (e: 'toggleCollapse', collapsed: boolean): void;
+  (e: "toggleCollapse", collapsed: boolean): void;
 }>();
 
 // Inject chart from parent
-const chart = inject<ShallowRef<IChartApi | null>>('chart');
-const globalSeriesMap = inject<ShallowRef<Map<string, ExtendedSeriesApi>>>('seriesMap');
+const chart = inject<ShallowRef<IChartApi | null>>("chart");
+const globalSeriesMap =
+  inject<ShallowRef<Map<string, ExtendedSeriesApi>>>("seriesMap");
 
 // Local state
 const localSeriesMap = ref<Map<string, ExtendedSeriesApi>>(new Map());
 const isCollapsed = ref(props.collapsed);
 const previousSeriesConfigs = ref<SeriesConfig[]>([]); // Track previous configs for smart updates
 let seriesIdCounter = 0; // Counter for generating unique series IDs
-let chartLevelAnnotationMarkers: any[] = []; // Chart-level annotations for this pane
+const chartLevelAnnotationMarkers: any[] = []; // Chart-level annotations for this pane
 
 const computedHeight = computed(() => {
-  if (typeof props.height === 'number') {
+  if (typeof props.height === "number") {
     return `${props.height}px`;
   }
-  if (typeof props.height === 'string') {
+  if (typeof props.height === "string") {
     return props.height;
   }
   if (props.heightRatio !== undefined) {
     return `${props.heightRatio * 100}%`;
   }
-  return '100%';
+  return "100%";
 });
 
 /**
@@ -107,7 +108,10 @@ const computedHeight = computed(() => {
 function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
   if (!chart?.value) return null;
 
-  const seriesId = config.seriesId || config.name || `pane${props.paneId}_series_${seriesIdCounter++}`;
+  const seriesId =
+    config.seriesId ||
+    config.name ||
+    `pane${props.paneId}_series_${seriesIdCounter++}`;
 
   // Check if series already exists
   if (localSeriesMap.value.has(seriesId)) {
@@ -135,12 +139,19 @@ function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
     const series = createSeriesWithConfig(chart.value, extendedConfig);
 
     if (!series) {
-      logger.error(`Failed to create series: ${config.seriesType}`, 'ChartPane');
+      logger.error(
+        `Failed to create series: ${config.seriesType}`,
+        "ChartPane",
+      );
       return null;
     }
 
     // Apply chart-level annotations if any
-    if (chartLevelAnnotationMarkers.length || config.markers?.length || config.annotations?.length) {
+    if (
+      chartLevelAnnotationMarkers.length ||
+      config.markers?.length ||
+      config.annotations?.length
+    ) {
       const allMarkers: any[] = [];
 
       // Add config markers
@@ -151,12 +162,14 @@ function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
       // Add series-level annotations
       if (config.annotations?.length) {
         try {
-          const annotationVisuals = createAnnotationVisualElements(config.annotations as any);
+          const annotationVisuals = createAnnotationVisualElements(
+            config.annotations as any,
+          );
           if (annotationVisuals.markers?.length) {
             allMarkers.push(...annotationVisuals.markers);
           }
         } catch (err) {
-          logger.error('Failed to create series annotations', 'ChartPane', err);
+          logger.error("Failed to create series annotations", "ChartPane", err);
         }
       }
 
@@ -170,7 +183,7 @@ function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
         try {
           createSeriesMarkers(series, allMarkers);
         } catch (err) {
-          logger.error('Failed to apply markers', 'ChartPane', err);
+          logger.error("Failed to apply markers", "ChartPane", err);
         }
       }
     }
@@ -181,10 +194,14 @@ function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
       globalSeriesMap.value.set(seriesId, series);
     }
 
-    emit('seriesAdded', seriesId, series);
+    emit("seriesAdded", seriesId, series);
     return series;
   } catch (err) {
-    logger.error(`Failed to create series ${config.seriesType}`, 'ChartPane', err);
+    logger.error(
+      `Failed to create series ${config.seriesType}`,
+      "ChartPane",
+      err,
+    );
     return null;
   }
 }
@@ -200,7 +217,7 @@ function removeSeries(seriesId: string): void {
     if (globalSeriesMap?.value) {
       globalSeriesMap.value.delete(seriesId);
     }
-    emit('seriesRemoved', seriesId);
+    emit("seriesRemoved", seriesId);
   }
 }
 
@@ -208,7 +225,11 @@ function removeSeries(seriesId: string): void {
  * Update data for a series in this pane.
  * Uses incremental updates (series.update) instead of full setData when possible.
  */
-function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = false): void {
+function updateSeriesData(
+  seriesId: string,
+  data: DataPoint[],
+  isInitialLoad = false,
+): void {
   const series = localSeriesMap.value.get(seriesId);
   if (!series) return;
 
@@ -222,7 +243,7 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
     // Incremental update: use update() for better performance
     // Get existing data from the series config to compare
     const configIndex = props.series.findIndex(
-      (s) => (s.seriesId || s.name) === seriesId
+      (s) => (s.seriesId || s.name) === seriesId,
     );
     const existingData = configIndex >= 0 ? props.series[configIndex].data : [];
 
@@ -231,7 +252,10 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
       series.setData(normalizedData as Parameters<typeof series.setData>[0]);
     } else {
       // DETECTION: Check for backfill (history prepend)
-      const existingFirstTime = existingData[0].time;
+      const existingFirstTime =
+        typeof existingData[0].time === "number"
+          ? existingData[0].time
+          : new Date(existingData[0].time).getTime() / 1000;
       const newFirstTime = normalizedData[0].time;
       const isBackfill = newFirstTime < existingFirstTime;
 
@@ -252,8 +276,14 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
 
         // Convert to sorted array
         const mergedData = Array.from(mergedMap.values()).sort((a, b) => {
-          const timeA = typeof a.time === 'number' ? a.time : new Date(a.time).getTime() / 1000;
-          const timeB = typeof b.time === 'number' ? b.time : new Date(b.time).getTime() / 1000;
+          const timeA =
+            typeof a.time === "number"
+              ? a.time
+              : new Date(a.time).getTime() / 1000;
+          const timeB =
+            typeof b.time === "number"
+              ? b.time
+              : new Date(b.time).getTime() / 1000;
           return timeA - timeB;
         });
 
@@ -264,14 +294,20 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
         const existingTimes = new Set(existingData.map((d) => d.time));
 
         // Find new bars (not in existing data)
-        const newBars = normalizedData.filter((bar) => !existingTimes.has(bar.time));
+        const newBars = normalizedData.filter(
+          (bar) => !existingTimes.has(bar.time),
+        );
 
         // Update last bar if changed (real-time tick)
         if (existingData.length > 0 && normalizedData.length > 0) {
           const lastExistingTime = existingData[existingData.length - 1].time;
-          const updatedLastBar = normalizedData.find((bar) => bar.time === lastExistingTime);
+          const updatedLastBar = normalizedData.find(
+            (bar) => bar.time === lastExistingTime,
+          );
           if (updatedLastBar) {
-            series.update(updatedLastBar as Parameters<typeof series.update>[0]);
+            series.update(
+              updatedLastBar as Parameters<typeof series.update>[0],
+            );
           }
         }
 
@@ -296,7 +332,7 @@ function getSeries(seriesId: string): ISeriesApi<SeriesType> | undefined {
  */
 function toggleCollapse(): void {
   isCollapsed.value = !isCollapsed.value;
-  emit('toggleCollapse', isCollapsed.value);
+  emit("toggleCollapse", isCollapsed.value);
 }
 
 /**
@@ -321,7 +357,10 @@ function shallowEqual(a: any, b: any): boolean {
  * Helper to check if series config changed (excluding data).
  * Uses shallow equality to avoid O(n) JSON.stringify on large datasets.
  */
-function seriesConfigChanged(oldConfig: SeriesConfig, newConfig: SeriesConfig): boolean {
+function seriesConfigChanged(
+  oldConfig: SeriesConfig,
+  newConfig: SeriesConfig,
+): boolean {
   return (
     oldConfig.seriesType !== newConfig.seriesType ||
     !shallowEqual(oldConfig.options, newConfig.options) ||
@@ -356,10 +395,14 @@ function initializeSeries(): void {
 
   // Build maps for comparison
   const currentSeriesIds = new Set(
-    props.series.map((s, i) => s.seriesId || s.name || `pane${props.paneId}_series_${i}`)
+    props.series.map(
+      (s, i) => s.seriesId || s.name || `pane${props.paneId}_series_${i}`,
+    ),
   );
   const previousSeriesIds = new Set(
-    previousSeriesConfigs.value.map((s, i) => s.seriesId || s.name || `pane${props.paneId}_series_${i}`)
+    previousSeriesConfigs.value.map(
+      (s, i) => s.seriesId || s.name || `pane${props.paneId}_series_${i}`,
+    ),
   );
 
   // Remove series that no longer exist
@@ -371,9 +414,12 @@ function initializeSeries(): void {
 
   // Add or update series
   props.series.forEach((config, index) => {
-    const seriesId = config.seriesId || config.name || `pane${props.paneId}_series_${index}`;
+    const seriesId =
+      config.seriesId || config.name || `pane${props.paneId}_series_${index}`;
     const previousConfig = previousSeriesConfigs.value.find(
-      (s, i) => (s.seriesId || s.name || `pane${props.paneId}_series_${i}`) === seriesId
+      (s, i) =>
+        (s.seriesId || s.name || `pane${props.paneId}_series_${i}`) ===
+        seriesId,
     );
 
     if (!previousConfig) {
@@ -407,7 +453,7 @@ watch(
       initializeSeries();
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 // Watch for series prop changes
@@ -416,7 +462,7 @@ watch(
   () => {
     initializeSeries();
   },
-  { deep: true }
+  { deep: true },
 );
 
 // Watch for collapsed prop changes
@@ -424,7 +470,7 @@ watch(
   () => props.collapsed,
   (newCollapsed) => {
     isCollapsed.value = newCollapsed;
-  }
+  },
 );
 
 // Cleanup on unmount
@@ -462,10 +508,7 @@ defineExpose({
     :class="{ collapsed: isCollapsed }"
     :style="{ height: computedHeight }"
   >
-    <div
-      v-if="title"
-      class="pane-header"
-    >
+    <div v-if="title" class="pane-header">
       <span class="pane-title">{{ title }}</span>
       <button
         v-if="!isCollapsed"
@@ -484,10 +527,7 @@ defineExpose({
         +
       </button>
     </div>
-    <div
-      v-if="!isCollapsed"
-      class="pane-content"
-    >
+    <div v-if="!isCollapsed" class="pane-content">
       <slot />
     </div>
   </div>

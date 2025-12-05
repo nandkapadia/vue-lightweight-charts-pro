@@ -1,8 +1,5 @@
 <template>
-  <Series
-    type="candlestick"
-    v-bind="seriesProps"
-  >
+  <Series type="candlestick" v-bind="seriesProps">
     <slot />
   </Series>
 </template>
@@ -22,9 +19,9 @@
  * </CandlestickSeries>
  */
 
-import Series from './Series.vue';
-import type { DataPoint } from '../types';
-import { computed } from 'vue';
+import Series from "./Series.vue";
+import type { DataPoint } from "../types";
+import { computed } from "vue";
 
 interface Props {
   data?: DataPoint[];

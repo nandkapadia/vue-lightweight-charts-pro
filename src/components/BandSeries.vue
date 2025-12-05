@@ -1,16 +1,13 @@
 <template>
-  <Series
-    type="band"
-    v-bind="seriesProps"
-  >
+  <Series type="band" v-bind="seriesProps">
     <slot />
   </Series>
 </template>
 
 <script setup lang="ts">
-import Series from './Series.vue';
-import type { DataPoint } from '../types';
-import { computed } from 'vue';
+import Series from "./Series.vue";
+import type { DataPoint } from "../types";
+import { computed } from "vue";
 
 interface Props {
   data?: DataPoint[];

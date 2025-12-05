@@ -1,5 +1,5 @@
 <template>
-  <div style="display: none;">
+  <div style="display: none">
     <!-- PriceLine is rendered by the chart - no DOM needed -->
   </div>
 </template>
@@ -18,10 +18,10 @@
  * </CandlestickSeries>
  */
 
-import { inject, onMounted, onUnmounted, watch, type Ref } from 'vue';
-import type { ExtendedSeriesApi } from '@lightweight-charts-pro/core';
-import { logger } from '@lightweight-charts-pro/core';
-import type { IPriceLine } from 'lightweight-charts';
+import { inject, onMounted, onUnmounted, watch, type Ref } from "vue";
+import type { ExtendedSeriesApi } from "@lightweight-charts-pro/core";
+import { logger } from "@lightweight-charts-pro/core";
+import type { IPriceLine } from "lightweight-charts";
 
 interface Props {
   price: number;
@@ -34,21 +34,24 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  color: '#2196F3',
+  color: "#2196F3",
   lineWidth: 1,
   lineStyle: 0,
   lineVisible: true,
   axisLabelVisible: true,
-  title: '',
+  title: "",
 });
 
-const series = inject<Ref<ExtendedSeriesApi | null>>('series');
+const series = inject<Ref<ExtendedSeriesApi | null>>("series");
 
 let priceLine: IPriceLine | null = null;
 
 function createPriceLine() {
   if (!series?.value) {
-    logger.warn('Series instance not available. Make sure PriceLine is a child of a Series component.', 'PriceLine');
+    logger.warn(
+      "Series instance not available. Make sure PriceLine is a child of a Series component.",
+      "PriceLine",
+    );
     return;
   }
 
@@ -70,7 +73,7 @@ function createPriceLine() {
       title: props.title,
     } as any);
   } catch (error) {
-    logger.error('Failed to create price line', 'PriceLine', error);
+    logger.error("Failed to create price line", "PriceLine", error);
   }
 }
 
@@ -88,7 +91,7 @@ watch(
   () => {
     createPriceLine();
   },
-  { deep: true }
+  { deep: true },
 );
 
 onMounted(() => {
@@ -100,7 +103,7 @@ onUnmounted(() => {
     try {
       series.value.removePriceLine(priceLine);
     } catch (error) {
-      logger.error('Failed to remove price line', 'PriceLine', error);
+      logger.error("Failed to remove price line", "PriceLine", error);
     }
   }
   priceLine = null;

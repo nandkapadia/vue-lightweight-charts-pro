@@ -1,5 +1,5 @@
 <template>
-  <div style="display: none;">
+  <div style="display: none">
     <!-- Trade visualization is rendered by the chart - no DOM needed -->
   </div>
 </template>
@@ -23,10 +23,13 @@
  * </CandlestickSeries>
  */
 
-import { inject, onMounted, onUnmounted, watch, type Ref } from 'vue';
-import type { ExtendedSeriesApi } from '@lightweight-charts-pro/core';
-import { createTradeVisualElements, logger } from '@lightweight-charts-pro/core';
-import { createSeriesMarkers } from 'lightweight-charts';
+import { inject, onMounted, onUnmounted, watch, type Ref } from "vue";
+import type { ExtendedSeriesApi } from "@lightweight-charts-pro/core";
+import {
+  createTradeVisualElements,
+  logger,
+} from "@lightweight-charts-pro/core";
+import { createSeriesMarkers } from "lightweight-charts";
 
 interface TradePoint {
   time: number | string;
@@ -39,23 +42,23 @@ interface Props {
   profitable?: boolean;
   pnl?: number;
   pnlPercentage?: number;
-  tradeType?: 'long' | 'short';
+  tradeType?: "long" | "short";
   id?: string;
   quantity?: number;
   notes?: string;
   // Visualization options
-  style?: 'markers' | 'rectangles' | 'both' | 'lines' | 'arrows' | 'zones';
+  style?: "markers" | "rectangles" | "both" | "lines" | "arrows" | "zones";
   showAnnotations?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   profitable: true,
-  tradeType: 'long',
-  style: 'both',
+  tradeType: "long",
+  style: "both",
   showAnnotations: true,
 });
 
-const series = inject<Ref<ExtendedSeriesApi | null>>('series');
+const series = inject<Ref<ExtendedSeriesApi | null>>("series");
 
 let tradeMarkers: any[] = [];
 
@@ -64,7 +67,10 @@ let tradeMarkers: any[] = [];
  */
 function createOrUpdateTrade() {
   if (!series?.value) {
-    logger.warn('Series instance not available. Make sure Trade is a child of a Series component.', 'Trade');
+    logger.warn(
+      "Series instance not available. Make sure Trade is a child of a Series component.",
+      "Trade",
+    );
     return;
   }
 
@@ -97,13 +103,15 @@ function createOrUpdateTrade() {
     const tradeVisuals = createTradeVisualElements(
       [tradeConfig],
       visualOptions as any,
-      seriesData
+      seriesData,
     );
 
     // Remove old markers first
     if (tradeMarkers.length > 0) {
       const existingMarkers = (series.value as any).markers?.() || [];
-      const filtered = existingMarkers.filter((m: any) => !tradeMarkers.includes(m));
+      const filtered = existingMarkers.filter(
+        (m: any) => !tradeMarkers.includes(m),
+      );
       createSeriesMarkers(series.value, filtered);
       tradeMarkers = [];
     }
@@ -111,14 +119,17 @@ function createOrUpdateTrade() {
     // Apply new markers
     if (tradeVisuals.markers?.length) {
       const existingMarkers = (series.value as any).markers?.() || [];
-      createSeriesMarkers(series.value, [...existingMarkers, ...tradeVisuals.markers]);
+      createSeriesMarkers(series.value, [
+        ...existingMarkers,
+        ...tradeVisuals.markers,
+      ]);
       tradeMarkers = tradeVisuals.markers;
     }
 
     // Note: Rectangles are handled by core's RectangleOverlayPlugin
     // which is set up by the unified series factory
   } catch (error) {
-    logger.error('Failed to create trade visualization', 'Trade', error);
+    logger.error("Failed to create trade visualization", "Trade", error);
   }
 }
 
@@ -130,11 +141,13 @@ function removeTrade() {
 
   try {
     const existingMarkers = (series.value as any).markers?.() || [];
-    const filtered = existingMarkers.filter((m: any) => !tradeMarkers.includes(m));
+    const filtered = existingMarkers.filter(
+      (m: any) => !tradeMarkers.includes(m),
+    );
     createSeriesMarkers(series.value, filtered);
     tradeMarkers = [];
   } catch (error) {
-    logger.error('Failed to remove trade visualization', 'Trade', error);
+    logger.error("Failed to remove trade visualization", "Trade", error);
   }
 }
 
@@ -153,7 +166,7 @@ watch(
   () => {
     createOrUpdateTrade();
   },
-  { deep: true }
+  { deep: true },
 );
 
 onMounted(() => {

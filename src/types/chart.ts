@@ -2,8 +2,14 @@
  * @fileoverview TypeScript types for chart configuration and state.
  */
 
-import type { IChartApi, ISeriesApi, SeriesType, Time, SeriesMarker } from 'lightweight-charts';
-import type { ChunkInfo, DataPoint, SeriesOptions } from './api';
+import type {
+  IChartApi,
+  ISeriesApi,
+  SeriesType,
+  Time,
+  SeriesMarker,
+} from "lightweight-charts";
+import type { ChunkInfo, DataPoint, SeriesOptions } from "./api";
 
 // Import types from core package
 import type {
@@ -12,7 +18,7 @@ import type {
   SignalSeriesOptions,
   TrendFillSeriesOptions,
   GradientRibbonSeriesOptions,
-} from '@lightweight-charts-pro/core';
+} from "@lightweight-charts-pro/core";
 
 /**
  * Lazy loading configuration for a series.
@@ -59,7 +65,7 @@ export interface TradeConfig {
  */
 export interface TradeVisualizationOptions {
   /** Visualization style */
-  style: 'markers' | 'rectangles' | 'both' | 'lines' | 'arrows' | 'zones';
+  style: "markers" | "rectangles" | "both" | "lines" | "arrows" | "zones";
 
   // Marker options
   entryMarkerColorLong?: string;
@@ -109,9 +115,9 @@ export interface Annotation {
   /** Annotation text */
   text: string;
   /** Annotation type */
-  type?: 'text' | 'arrow' | 'shape' | 'line' | 'rectangle' | 'circle';
+  type?: "text" | "arrow" | "shape" | "line" | "rectangle" | "circle";
   /** Position relative to bar */
-  position?: 'aboveBar' | 'belowBar' | 'inBar';
+  position?: "aboveBar" | "belowBar" | "inBar";
   /** Text/shape color */
   color?: string;
   /** Background color */
@@ -133,18 +139,24 @@ export interface SeriesConfig {
   /** Series type - includes custom series from core package */
   seriesType:
     | SeriesType
-    | 'Band'
-    | 'Ribbon'
-    | 'Signal'
-    | 'TrendFill'
-    | 'GradientRibbon'
+    | "Band"
+    | "Ribbon"
+    | "Signal"
+    | "TrendFill"
+    | "GradientRibbon"
     | string;
   /** Pane ID where series is rendered */
   paneId?: number;
   /** Series data points */
   data: DataPoint[];
   /** Series display options */
-  options?: SeriesOptions | BandSeriesOptions | RibbonSeriesOptions | SignalSeriesOptions | TrendFillSeriesOptions | GradientRibbonSeriesOptions;
+  options?:
+    | SeriesOptions
+    | BandSeriesOptions
+    | RibbonSeriesOptions
+    | SignalSeriesOptions
+    | TrendFillSeriesOptions
+    | GradientRibbonSeriesOptions;
   /** Lazy loading configuration (Vue-specific for backend integration) */
   lazyLoading?: LazyLoadingConfig;
   /** Series markers */
@@ -200,7 +212,7 @@ export interface TimeScaleOptions {
  */
 export interface PriceScaleOptions {
   /** Position (left, right, none) */
-  position?: 'left' | 'right' | 'none';
+  position?: "left" | "right" | "none";
   /** Border color */
   borderColor?: string;
   /** Text color */
@@ -335,21 +347,21 @@ export interface ChartProps {
  */
 export interface ChartEmits {
   /** Emitted when chart is ready */
-  (e: 'ready', chart: IChartApi): void;
+  (e: "ready", chart: IChartApi): void;
   /** Emitted when crosshair moves */
-  (e: 'crosshairMove', params: unknown): void;
+  (e: "crosshairMove", params: unknown): void;
   /** Emitted when time range changes */
-  (e: 'visibleTimeRangeChange', range: unknown): void;
+  (e: "visibleTimeRangeChange", range: unknown): void;
   /** Emitted when series is clicked */
-  (e: 'seriesClick', params: unknown): void;
+  (e: "seriesClick", params: unknown): void;
   /** Emitted on WebSocket connection */
-  (e: 'connected'): void;
+  (e: "connected"): void;
   /** Emitted on WebSocket disconnection */
-  (e: 'disconnected'): void;
+  (e: "disconnected"): void;
   /** Emitted on error */
-  (e: 'error', error: Error): void;
+  (e: "error", error: Error): void;
   /** Emitted when data is loaded */
-  (e: 'dataLoaded', seriesId: string, count: number): void;
+  (e: "dataLoaded", seriesId: string, count: number): void;
 }
 
 /**

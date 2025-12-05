@@ -1,5 +1,5 @@
 <template>
-  <div style="display: none;">
+  <div style="display: none">
     <!-- RangeSwitcher is rendered by the primitive directly - no DOM needed -->
   </div>
 </template>
@@ -25,20 +25,20 @@
  * </LightweightChart>
  */
 
-import { onMounted, onUnmounted, inject, type Ref } from 'vue';
-import type { IChartApi } from 'lightweight-charts';
+import { onMounted, onUnmounted, inject, type Ref } from "vue";
+import type { IChartApi } from "lightweight-charts";
 import {
   RangeSwitcherPrimitive,
   TimeRange,
   type RangeConfig,
   logger,
-} from '@lightweight-charts-pro/core';
+} from "@lightweight-charts-pro/core";
 
 interface Props {
   /** Array of range configurations */
   ranges?: RangeConfig[];
   /** Corner position for the range switcher */
-  corner?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  corner?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
   /** Pane ID to attach switcher to */
   paneId?: number;
   /** Custom styling */
@@ -47,26 +47,29 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   ranges: () => [
-    { text: '1D', range: TimeRange.ONE_DAY },
-    { text: '1W', range: TimeRange.ONE_WEEK },
-    { text: '1M', range: TimeRange.ONE_MONTH },
-    { text: '3M', range: TimeRange.THREE_MONTHS },
-    { text: '6M', range: TimeRange.SIX_MONTHS },
-    { text: '1Y', range: TimeRange.ONE_YEAR },
-    { text: 'All', range: TimeRange.ALL },
+    { text: "1D", range: TimeRange.ONE_DAY },
+    { text: "1W", range: TimeRange.ONE_WEEK },
+    { text: "1M", range: TimeRange.ONE_MONTH },
+    { text: "3M", range: TimeRange.THREE_MONTHS },
+    { text: "6M", range: TimeRange.SIX_MONTHS },
+    { text: "1Y", range: TimeRange.ONE_YEAR },
+    { text: "All", range: TimeRange.ALL },
   ],
-  corner: 'top-right',
+  corner: "top-right",
   paneId: 0,
 });
 
 // Inject chart instance from parent
-const chart = inject<Ref<IChartApi | null>>('chart');
+const chart = inject<Ref<IChartApi | null>>("chart");
 
 let rangeSwitcherPrimitive: RangeSwitcherPrimitive | null = null;
 
 onMounted(() => {
   if (!chart?.value) {
-    logger.warn('Chart instance not available. Make sure RangeSwitcher is a child of LightweightChart.', 'RangeSwitcher');
+    logger.warn(
+      "Chart instance not available. Make sure RangeSwitcher is a child of LightweightChart.",
+      "RangeSwitcher",
+    );
     return;
   }
 
@@ -82,20 +85,20 @@ onMounted(() => {
     // Create the primitive
     rangeSwitcherPrimitive = new RangeSwitcherPrimitive(
       `range-switcher-${Date.now()}`,
-      config
+      config,
     );
 
     // Attach to the appropriate pane
     const panes = (chart.value as any).panes?.() || [];
     const targetPane = panes[props.paneId] || panes[0];
 
-    if (targetPane && typeof targetPane.attachPrimitive === 'function') {
+    if (targetPane && typeof targetPane.attachPrimitive === "function") {
       targetPane.attachPrimitive(rangeSwitcherPrimitive);
     } else {
-      logger.warn('Could not attach primitive to pane', 'RangeSwitcher');
+      logger.warn("Could not attach primitive to pane", "RangeSwitcher");
     }
   } catch (error) {
-    logger.error('Failed to create range switcher', 'RangeSwitcher', error);
+    logger.error("Failed to create range switcher", "RangeSwitcher", error);
   }
 });
 
@@ -105,7 +108,7 @@ onUnmounted(() => {
       // The primitive will clean up automatically when detached
       rangeSwitcherPrimitive = null;
     } catch (error) {
-      logger.error('Failed to cleanup range switcher', 'RangeSwitcher', error);
+      logger.error("Failed to cleanup range switcher", "RangeSwitcher", error);
     }
   }
 });

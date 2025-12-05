@@ -1,5 +1,5 @@
 <template>
-  <div style="display: none;">
+  <div style="display: none">
     <!-- Child components (Marker, PriceLine, Trade, Annotation) will be rendered here -->
     <slot v-if="isReady" />
   </div>
@@ -26,8 +26,8 @@
  * <Series :type="selectedType" :data="data" />
  */
 
-import { useSeries } from '../composables/useSeries';
-import type { DataPoint } from '../types';
+import { useSeries } from "../composables/useSeries";
+import type { DataPoint } from "../types";
 
 interface Props {
   /** Series type (e.g., 'line', 'candlestick', 'band', etc.) */

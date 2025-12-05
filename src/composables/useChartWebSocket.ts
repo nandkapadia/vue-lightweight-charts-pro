@@ -5,14 +5,14 @@
  * including automatic reconnection, ping/pong health checks, and message handling.
  */
 
-import { ref, computed, onUnmounted, type Ref, type ComputedRef } from 'vue';
+import { ref, computed, onUnmounted, type Ref, type ComputedRef } from "vue";
 import type {
   WebSocketState,
   WebSocketConfig,
   WebSocketEventHandlers,
   IncomingMessage,
   OutgoingMessage,
-} from '../types';
+} from "../types";
 
 /**
  * WebSocket state returned by the composable.
@@ -46,14 +46,15 @@ export interface UseChartWebSocketMethods {
     seriesId: string,
     time: number,
     count?: number,
-    direction?: 'before' | 'after'
+    direction?: "before" | "after",
   ) => void;
 }
 
 /**
  * Return type of the useChartWebSocket composable.
  */
-export type UseChartWebSocketReturn = UseChartWebSocketState & UseChartWebSocketMethods;
+export type UseChartWebSocketReturn = UseChartWebSocketState &
+  UseChartWebSocketMethods;
 
 /**
  * Default reconnection configuration.
@@ -73,51 +74,62 @@ const DEFAULT_PING_INTERVAL = 30000;
 /**
  * Valid incoming message types for validation.
  */
-const VALID_MESSAGE_TYPES = ['connected', 'pong', 'initial_data_response', 'history_response', 'data_update'] as const;
+const VALID_MESSAGE_TYPES = [
+  "connected",
+  "pong",
+  "initial_data_response",
+  "history_response",
+  "data_update",
+] as const;
 
 /**
  * Validate that the parsed message has the expected structure.
  * Prevents accepting malformed or unexpected message payloads.
  */
 function isValidIncomingMessage(message: unknown): message is IncomingMessage {
-  if (typeof message !== 'object' || message === null) {
+  if (typeof message !== "object" || message === null) {
     return false;
   }
 
   const msg = message as Record<string, unknown>;
 
   // Must have a valid type
-  if (typeof msg.type !== 'string' || !VALID_MESSAGE_TYPES.includes(msg.type as typeof VALID_MESSAGE_TYPES[number])) {
+  if (
+    typeof msg.type !== "string" ||
+    !VALID_MESSAGE_TYPES.includes(
+      msg.type as (typeof VALID_MESSAGE_TYPES)[number],
+    )
+  ) {
     return false;
   }
 
   // Type-specific validation
   switch (msg.type) {
-    case 'connected':
-      return typeof msg.chartId === 'string';
+    case "connected":
+      return typeof msg.chartId === "string";
 
-    case 'pong':
+    case "pong":
       return true;
 
-    case 'initial_data_response':
-      return typeof msg.chartId === 'string';
+    case "initial_data_response":
+      return typeof msg.chartId === "string";
 
-    case 'history_response':
+    case "history_response":
       return (
-        typeof msg.chartId === 'string' &&
-        typeof msg.paneId === 'number' &&
-        typeof msg.seriesId === 'string' &&
+        typeof msg.chartId === "string" &&
+        typeof msg.paneId === "number" &&
+        typeof msg.seriesId === "string" &&
         Array.isArray(msg.data) &&
-        typeof msg.hasMoreBefore === 'boolean' &&
-        typeof msg.hasMoreAfter === 'boolean'
+        typeof msg.hasMoreBefore === "boolean" &&
+        typeof msg.hasMoreAfter === "boolean"
       );
 
-    case 'data_update':
+    case "data_update":
       return (
-        typeof msg.chartId === 'string' &&
-        typeof msg.paneId === 'number' &&
-        typeof msg.seriesId === 'string' &&
-        typeof msg.count === 'number'
+        typeof msg.chartId === "string" &&
+        typeof msg.paneId === "number" &&
+        typeof msg.seriesId === "string" &&
+        typeof msg.count === "number"
       );
 
     default:
@@ -159,7 +171,7 @@ function isValidIncomingMessage(message: unknown): message is IncomingMessage {
  */
 export function useChartWebSocket(
   config: WebSocketConfig,
-  handlers: WebSocketEventHandlers = {}
+  handlers: WebSocketEventHandlers = {},
 ): UseChartWebSocketReturn {
   const {
     url,
@@ -169,12 +181,12 @@ export function useChartWebSocket(
   } = config;
 
   // Reactive state
-  const state = ref<WebSocketState>('disconnected');
+  const state = ref<WebSocketState>("disconnected");
   const error = ref<string | null>(null);
   const reconnectAttempts = ref(0);
 
   // Computed
-  const isConnected = computed(() => state.value === 'connected');
+  const isConnected = computed(() => state.value === "connected");
 
   // Internal state
   let socket: WebSocket | null = null;
@@ -189,7 +201,7 @@ export function useChartWebSocket(
     const { baseDelay = 1000, maxDelay = 30000 } = reconnect;
     const delay = Math.min(
       baseDelay * Math.pow(2, reconnectAttempts.value),
-      maxDelay
+      maxDelay,
     );
     // Add jitter (0-500ms)
     return delay + Math.random() * 500;
@@ -204,17 +216,17 @@ export function useChartWebSocket(
 
       // Validate message structure before processing
       if (!isValidIncomingMessage(parsed)) {
-        console.warn('Invalid WebSocket message received:', parsed);
+        console.warn("Invalid WebSocket message received:", parsed);
         return;
       }
 
       const message = parsed;
 
       switch (message.type) {
-        case 'connected':
+        case "connected":
           // State already set to 'connected' in handleOpen()
           // Server message is optional confirmation - just update if needed
-          state.value = 'connected';
+          state.value = "connected";
           reconnectAttempts.value = 0;
           // Only call handler if chartId differs (server override)
           if (message.chartId !== _chartId) {
@@ -222,24 +234,24 @@ export function useChartWebSocket(
           }
           break;
 
-        case 'pong':
+        case "pong":
           // Connection health confirmed
           break;
 
-        case 'initial_data_response':
+        case "initial_data_response":
           handlers.onInitialData?.(message);
           break;
 
-        case 'history_response':
+        case "history_response":
           handlers.onHistoryResponse?.(message);
           break;
 
-        case 'data_update':
+        case "data_update":
           handlers.onDataUpdate?.(message);
           break;
       }
     } catch (err) {
-      console.error('Failed to parse WebSocket message:', err);
+      console.error("Failed to parse WebSocket message:", err);
     }
   }
 
@@ -248,7 +260,7 @@ export function useChartWebSocket(
    * Sets state to 'connected' immediately - server 'connected' message is optional.
    */
   function handleOpen(): void {
-    state.value = 'connected';
+    state.value = "connected";
     reconnectAttempts.value = 0;
     startPingInterval();
 
@@ -262,13 +274,14 @@ export function useChartWebSocket(
    * Handle WebSocket connection close.
    */
   function handleClose(): void {
-    state.value = 'disconnected';
+    state.value = "disconnected";
     stopPingInterval();
     handlers.onDisconnected?.();
 
     // Attempt reconnection if not manually disconnected and not already scheduled
     if (!isManualDisconnect && reconnect.enabled && !reconnectTimer) {
-      const maxAttempts = reconnect.maxAttempts ?? DEFAULT_RECONNECT.maxAttempts;
+      const maxAttempts =
+        reconnect.maxAttempts ?? DEFAULT_RECONNECT.maxAttempts;
       if (reconnectAttempts.value < maxAttempts) {
         scheduleReconnect();
       } else {
@@ -282,7 +295,7 @@ export function useChartWebSocket(
    * Closes the socket and triggers reconnect if enabled.
    */
   function handleError(_event: Event): void {
-    const errorMessage = 'WebSocket connection error';
+    const errorMessage = "WebSocket connection error";
     error.value = errorMessage;
     handlers.onError?.(new Error(errorMessage));
 
@@ -292,14 +305,15 @@ export function useChartWebSocket(
       socket = null;
     }
 
-    state.value = 'error';
+    state.value = "error";
     stopPingInterval();
 
     // Attempt reconnection if not manually disconnected
     if (!isManualDisconnect && reconnect.enabled && !reconnectTimer) {
-      const maxAttempts = reconnect.maxAttempts ?? DEFAULT_RECONNECT.maxAttempts;
+      const maxAttempts =
+        reconnect.maxAttempts ?? DEFAULT_RECONNECT.maxAttempts;
       if (reconnectAttempts.value < maxAttempts) {
-        console.log('WebSocket error occurred, scheduling reconnect...');
+        console.log("WebSocket error occurred, scheduling reconnect...");
         scheduleReconnect();
       } else {
         error.value = `Max reconnection attempts (${maxAttempts}) reached after error`;
@@ -314,7 +328,7 @@ export function useChartWebSocket(
     stopPingInterval();
     pingTimer = setInterval(() => {
       if (socket?.readyState === WebSocket.OPEN) {
-        send({ type: 'ping' });
+        send({ type: "ping" });
       }
     }, pingInterval);
   }
@@ -343,7 +357,7 @@ export function useChartWebSocket(
     reconnectAttempts.value++;
 
     console.log(
-      `Scheduling reconnect attempt ${reconnectAttempts.value} in ${delay}ms`
+      `Scheduling reconnect attempt ${reconnectAttempts.value} in ${delay}ms`,
     );
 
     reconnectTimer = setTimeout(() => {
@@ -363,7 +377,7 @@ export function useChartWebSocket(
     }
 
     isManualDisconnect = false;
-    state.value = 'connecting';
+    state.value = "connecting";
     error.value = null;
 
     try {
@@ -377,8 +391,8 @@ export function useChartWebSocket(
     } catch (err) {
       // Ensure socket is nullified on construction error
       socket = null;
-      state.value = 'error';
-      error.value = err instanceof Error ? err.message : 'Failed to connect';
+      state.value = "error";
+      error.value = err instanceof Error ? err.message : "Failed to connect";
       handlers.onError?.(err instanceof Error ? err : new Error(String(err)));
     }
   }
@@ -400,7 +414,7 @@ export function useChartWebSocket(
       socket = null;
     }
 
-    state.value = 'disconnected';
+    state.value = "disconnected";
     reconnectAttempts.value = 0;
   }
 
@@ -411,7 +425,7 @@ export function useChartWebSocket(
    */
   function send(message: OutgoingMessage): boolean {
     if (!socket || socket.readyState !== WebSocket.OPEN) {
-      console.warn('WebSocket not connected, cannot send message');
+      console.warn("WebSocket not connected, cannot send message");
       return false;
     }
 
@@ -419,7 +433,7 @@ export function useChartWebSocket(
       socket.send(JSON.stringify(message));
       return true;
     } catch (err) {
-      console.error('Failed to send WebSocket message:', err);
+      console.error("Failed to send WebSocket message:", err);
       return false;
     }
   }
@@ -429,7 +443,7 @@ export function useChartWebSocket(
    */
   function requestInitialData(paneId?: number, seriesId?: string): void {
     send({
-      type: 'get_initial_data',
+      type: "get_initial_data",
       paneId,
       seriesId,
     });
@@ -443,15 +457,13 @@ export function useChartWebSocket(
     seriesId: string,
     time: number,
     count: number = 500,
-    direction: 'before' | 'after' = 'before'
+    direction: "before" | "after" = "before",
   ): void {
     send({
-      type: 'request_history',
+      type: "request_history",
       paneId,
       seriesId,
-      ...(direction === 'before'
-        ? { beforeTime: time }
-        : { afterTime: time }),
+      ...(direction === "before" ? { beforeTime: time } : { afterTime: time }),
       count,
     });
   }

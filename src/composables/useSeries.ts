@@ -5,11 +5,24 @@
  * Handles series creation, data updates, and cleanup.
  */
 
-import { ref, inject, onMounted, onUnmounted, watch, provide, type Ref } from 'vue';
-import type { IChartApi } from 'lightweight-charts';
-import { createSeriesWithConfig, type ExtendedSeriesApi, type ExtendedSeriesConfig, logger } from '@lightweight-charts-pro/core';
-import type { DataPoint } from '../types';
-import { normalizeDataPoints, normalizeTime } from '../utils/time';
+import {
+  ref,
+  inject,
+  onMounted,
+  onUnmounted,
+  watch,
+  provide,
+  type Ref,
+} from "vue";
+import type { IChartApi } from "lightweight-charts";
+import {
+  createSeriesWithConfig,
+  type ExtendedSeriesApi,
+  type ExtendedSeriesConfig,
+  logger,
+} from "@lightweight-charts-pro/core";
+import type { DataPoint } from "../types";
+import { normalizeDataPoints, normalizeTime } from "../utils/time";
 
 export interface UseSeriesOptions {
   type: string;
@@ -26,20 +39,24 @@ export interface UseSeriesOptions {
 
 export function useSeries(props: UseSeriesOptions) {
   // Inject chart and series map from parent
-  const chart = inject<Ref<IChartApi | null>>('chart');
-  const seriesMap = inject<Ref<Map<string, ExtendedSeriesApi>>>('seriesMap');
+  const chart = inject<Ref<IChartApi | null>>("chart");
+  const seriesMap = inject<Ref<Map<string, ExtendedSeriesApi>>>("seriesMap");
 
   const series = ref<ExtendedSeriesApi | null>(null);
   const isReady = ref(false);
   const resolvedSeriesId = ref<string | undefined>(undefined);
-  const previousData = ref<DataPoint[]>([]); // Track previous data for incremental updates
+  // Track previous data for incremental updates (always normalized, so time is always number)
+  const previousData = ref<Array<DataPoint & { time: number }>>([]);
 
   /**
    * Create the series instance
    */
   function createSeriesInstance() {
     if (!chart?.value) {
-      logger.warn('Chart instance not available. Make sure Series is a child of LightweightChart.', 'useSeries');
+      logger.warn(
+        "Chart instance not available. Make sure Series is a child of LightweightChart.",
+        "useSeries",
+      );
       return;
     }
 
@@ -62,7 +79,7 @@ export function useSeries(props: UseSeriesOptions) {
         priceLines: props.priceLines as any,
         markers: props.markers,
         seriesId: seriesId,
-        chartId: (chart.value as any).chartId || 'chart',
+        chartId: (chart.value as any).chartId || "chart",
         trades: props.trades as any,
         tradeVisualizationOptions: props.tradeVisualizationOptions as any,
       };
@@ -71,7 +88,7 @@ export function useSeries(props: UseSeriesOptions) {
       const createdSeries = createSeriesWithConfig(chart.value, config);
 
       if (!createdSeries) {
-        logger.error(`Failed to create series: ${props.type}`, 'useSeries');
+        logger.error(`Failed to create series: ${props.type}`, "useSeries");
         return;
       }
 
@@ -83,13 +100,13 @@ export function useSeries(props: UseSeriesOptions) {
       }
 
       // Provide series to child components (Marker, PriceLine, etc.)
-      provide('series', series);
-      provide('seriesId', seriesId);
+      provide("series", series);
+      provide("seriesId", seriesId);
 
       isReady.value = true;
-      logger.info(`Created ${props.type} series: ${seriesId}`, 'useSeries');
+      logger.info(`Created ${props.type} series: ${seriesId}`, "useSeries");
     } catch (err) {
-      logger.error(`Failed to create series ${props.type}`, 'useSeries', err);
+      logger.error(`Failed to create series ${props.type}`, "useSeries", err);
     }
   }
 
@@ -125,19 +142,21 @@ export function useSeries(props: UseSeriesOptions) {
 
         // Quick time range check (normalize only first/last times for comparison)
         const existingFirstTime = previousData.value[0].time;
-        const existingLastTime = previousData.value[previousData.value.length - 1].time;
+        const existingLastTime =
+          previousData.value[previousData.value.length - 1].time;
 
         // Normalize only the boundary times for quick checks
         const newFirstTime = normalizeTime(newData[0].time);
         const newLastTime = normalizeTime(newData[newData.length - 1].time);
 
-        const isNonOverlapping = newLastTime < existingFirstTime || newFirstTime > existingLastTime;
+        const isNonOverlapping =
+          newLastTime < existingFirstTime || newFirstTime > existingLastTime;
 
         if (isShrink || isNonOverlapping) {
           needsFullNormalization = true;
           logger.info(
             `Dataset replacement detected (shrink: ${isShrink}, non-overlapping: ${isNonOverlapping}). Full normalization.`,
-            'useSeries'
+            "useSeries",
           );
         }
       }
@@ -145,11 +164,19 @@ export function useSeries(props: UseSeriesOptions) {
       // Normalize data based on scenario
       let normalizedData: Array<DataPoint & { time: number }>;
 
-      if (!previousData.value.length || newData.length === 0 || needsFullNormalization) {
+      if (
+        !previousData.value.length ||
+        newData.length === 0 ||
+        needsFullNormalization
+      ) {
         // Initial load, empty data, or replacement: normalize entire dataset
         normalizedData = normalizeDataPoints(newData);
 
-        if (!previousData.value.length || normalizedData.length === 0 || needsFullNormalization) {
+        if (
+          !previousData.value.length ||
+          normalizedData.length === 0 ||
+          needsFullNormalization
+        ) {
           // Use setData() for these cases
           series.value.setData(normalizedData as any);
           previousData.value = normalizedData;
@@ -158,7 +185,10 @@ export function useSeries(props: UseSeriesOptions) {
       } else {
         // CACHED NORMALIZATION: Only normalize new/changed bars
         // Build a map of time → normalized bar from previousData
-        const normalizedCache = new Map<number | string, DataPoint & { time: number }>();
+        const normalizedCache = new Map<
+          number | string,
+          DataPoint & { time: number }
+        >();
         previousData.value.forEach((bar) => {
           normalizedCache.set(bar.time, bar);
         });
@@ -194,7 +224,8 @@ export function useSeries(props: UseSeriesOptions) {
       const isShrink = newLength < existingLength * 0.5;
 
       // 2. Non-overlapping time windows: symbol/instrument change
-      const isNonOverlapping = newLastTime < existingFirstTime || newFirstTime > existingLastTime;
+      const isNonOverlapping =
+        newLastTime < existingFirstTime || newFirstTime > existingLastTime;
 
       // 3. First timestamp moving backward: history prepend/backfill
       const isBackfill = newFirstTime < existingFirstTime;
@@ -203,7 +234,7 @@ export function useSeries(props: UseSeriesOptions) {
       if (isShrink || isNonOverlapping) {
         logger.info(
           `Dataset replacement detected (shrink: ${isShrink}, non-overlapping: ${isNonOverlapping}). Using setData()`,
-          'useSeries'
+          "useSeries",
         );
         series.value.setData(normalizedData as any);
         previousData.value = normalizedData;
@@ -213,11 +244,17 @@ export function useSeries(props: UseSeriesOptions) {
       // If backfill (history prepend), merge and use setData()
       // lightweight-charts ignores update() calls for earlier timestamps
       if (isBackfill) {
-        logger.info('Backfill detected. Merging history with existing data.', 'useSeries');
+        logger.info(
+          "Backfill detected. Merging history with existing data.",
+          "useSeries",
+        );
 
         // Merge: new historical data first, then existing data
         // Build map for deduplication (newer bars overwrite)
-        const mergedMap = new Map<number | string, DataPoint & { time: number }>();
+        const mergedMap = new Map<
+          number | string,
+          DataPoint & { time: number }
+        >();
 
         // Add existing bars
         previousData.value.forEach((bar) => {
@@ -244,26 +281,34 @@ export function useSeries(props: UseSeriesOptions) {
       const existingTimes = new Set(previousData.value.map((d) => d.time));
 
       // Find new bars (not in existing data)
-      const newBars = normalizedData.filter((bar) => !existingTimes.has(bar.time));
+      const newBars = normalizedData.filter(
+        (bar) => !existingTimes.has(bar.time),
+      );
 
       // Update last bar if changed (real-time tick)
       if (previousData.value.length > 0 && normalizedData.length > 0) {
-        const lastExistingTime = previousData.value[previousData.value.length - 1].time;
-        const updatedLastBar = normalizedData.find((bar) => bar.time === lastExistingTime);
+        const lastExistingTime =
+          previousData.value[previousData.value.length - 1].time;
+        const updatedLastBar = normalizedData.find(
+          (bar) => bar.time === lastExistingTime,
+        );
         if (updatedLastBar) {
           series.value.update(updatedLastBar as any);
         }
       }
 
       // Append new bars using update() - O(1) per bar instead of O(n) for entire dataset
-      newBars.forEach((bar) => {
-        series.value!.update(bar as any);
-      });
+      const seriesInstance = series.value;
+      if (seriesInstance) {
+        newBars.forEach((bar) => {
+          seriesInstance.update(bar as any);
+        });
+      }
 
       // Update tracked data reference
       previousData.value = normalizedData;
     } catch (err) {
-      logger.error('Failed to update series data', 'useSeries', err);
+      logger.error("Failed to update series data", "useSeries", err);
     }
   }
 
@@ -275,7 +320,7 @@ export function useSeries(props: UseSeriesOptions) {
       try {
         series.value.applyOptions(newOptions as any);
       } catch (err) {
-        logger.error('Failed to update series options', 'useSeries', err);
+        logger.error("Failed to update series options", "useSeries", err);
       }
     }
   }
@@ -298,7 +343,7 @@ export function useSeries(props: UseSeriesOptions) {
         resolvedSeriesId.value = undefined;
         previousData.value = []; // Clear tracked data
       } catch (err) {
-        logger.error('Failed to remove series', 'useSeries', err);
+        logger.error("Failed to remove series", "useSeries", err);
       }
     }
   }
@@ -310,7 +355,7 @@ export function useSeries(props: UseSeriesOptions) {
       if (newData) {
         updateData(newData);
       }
-    }
+    },
   );
 
   // Watch for option changes (shallow watch - options object should be replaced, not mutated)
@@ -320,7 +365,7 @@ export function useSeries(props: UseSeriesOptions) {
       if (newOptions) {
         updateOptions(newOptions);
       }
-    }
+    },
   );
 
   // Lifecycle

@@ -88,7 +88,7 @@ export interface GetHistoryRequest {
   /** Get data after this timestamp */
   afterTime?: number;
   /** Direction of pagination */
-  direction?: 'before' | 'after';
+  direction?: "before" | "after";
   /** Number of data points to return (default 500) */
   count?: number;
 }
@@ -148,7 +148,9 @@ export interface ChunkedSeriesDataResponse {
 /**
  * Union type for series data response.
  */
-export type GetSeriesDataResponse = SeriesDataResponse | ChunkedSeriesDataResponse;
+export type GetSeriesDataResponse =
+  | SeriesDataResponse
+  | ChunkedSeriesDataResponse;
 
 /**
  * Response for getting historical data.
@@ -187,11 +189,17 @@ export interface ChartData {
   /** Chart identifier */
   chartId: string;
   /** Panes with series data (paneId -> seriesId -> series data) */
-  panes: Record<string, Record<string, {
-    seriesType: string;
-    data: DataPoint[];
-    options: SeriesOptions;
-  }>>;
+  panes: Record<
+    string,
+    Record<
+      string,
+      {
+        seriesType: string;
+        data: DataPoint[];
+        options: SeriesOptions;
+      }
+    >
+  >;
   /** Chart options */
   options: Record<string, unknown>;
 }
@@ -213,7 +221,7 @@ export interface ApiError {
  */
 export interface HealthCheckResponse {
   /** Server status */
-  status: 'healthy' | 'unhealthy';
+  status: "healthy" | "unhealthy";
   /** API version */
   version: string;
 }

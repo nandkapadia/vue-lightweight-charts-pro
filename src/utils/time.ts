@@ -5,18 +5,18 @@
  * millisecond/second confusion that can place data 1000x in the future.
  */
 
-import type { Time, BusinessDay } from 'lightweight-charts';
+import type { Time, BusinessDay } from "lightweight-charts";
 
 /**
  * Check if a value is a BusinessDay object.
  */
 function isBusinessDay(time: unknown): time is BusinessDay {
   return (
-    typeof time === 'object' &&
+    typeof time === "object" &&
     time !== null &&
-    'year' in time &&
-    'month' in time &&
-    'day' in time
+    "year" in time &&
+    "month" in time &&
+    "day" in time
   );
 }
 
@@ -54,7 +54,7 @@ export function normalizeTime(time: number | string | Time): number {
     return timestamp;
   }
 
-  if (typeof time === 'string') {
+  if (typeof time === "string") {
     // Parse string date using Date.parse() which interprets strings without
     // timezone info as local timezone. This is intentional to allow users
     // to provide dates in their local timezone when needed.
@@ -70,7 +70,7 @@ export function normalizeTime(time: number | string | Time): number {
   }
 
   // Validate numeric timestamp
-  if (typeof time !== 'number' || isNaN(time)) {
+  if (typeof time !== "number" || isNaN(time)) {
     throw new Error(`Invalid time value: ${time}`);
   }
 
@@ -92,7 +92,7 @@ export function normalizeTime(time: number | string | Time): number {
  * @throws Error if data contains NaN or undefined values
  */
 export function normalizeDataPoints<T extends { time: number | string }>(
-  data: T[]
+  data: T[],
 ): Array<T & { time: number }> {
   return data.map((point, index) => {
     // Validate for NaN/undefined in critical fields
@@ -102,8 +102,10 @@ export function normalizeDataPoints<T extends { time: number | string }>(
 
     // Check for NaN in numeric fields (value, open, high, low, close, etc.)
     Object.entries(point).forEach(([key, value]) => {
-      if (typeof value === 'number' && isNaN(value)) {
-        throw new Error(`Data point at index ${index} has NaN in field "${key}"`);
+      if (typeof value === "number" && isNaN(value)) {
+        throw new Error(
+          `Data point at index ${index} has NaN in field "${key}"`,
+        );
       }
     });
 

@@ -1,16 +1,13 @@
 <template>
-  <Series
-    type="baseline"
-    v-bind="seriesProps"
-  >
+  <Series type="baseline" v-bind="seriesProps">
     <slot />
   </Series>
 </template>
 
 <script setup lang="ts">
-import Series from './Series.vue';
-import type { DataPoint } from '../types';
-import { computed } from 'vue';
+import Series from "./Series.vue";
+import type { DataPoint } from "../types";
+import { computed } from "vue";
 
 interface Props {
   data?: DataPoint[];

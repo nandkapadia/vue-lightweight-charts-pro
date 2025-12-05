@@ -1,5 +1,5 @@
 <template>
-  <div style="display: none;">
+  <div style="display: none">
     <!-- Marker is rendered by the chart - no DOM needed -->
   </div>
 </template>
@@ -18,28 +18,28 @@
  * </CandlestickSeries>
  */
 
-import { inject, onMounted, onUnmounted, watch, type Ref } from 'vue';
-import { createSeriesMarkers, type SeriesMarker } from 'lightweight-charts';
-import type { ExtendedSeriesApi } from '@lightweight-charts-pro/core';
-import { logger } from '@lightweight-charts-pro/core';
-import { normalizeTime } from '../utils/time';
+import { inject, onMounted, onUnmounted, watch, type Ref } from "vue";
+import { createSeriesMarkers, type SeriesMarker } from "lightweight-charts";
+import type { ExtendedSeriesApi } from "@lightweight-charts-pro/core";
+import { logger } from "@lightweight-charts-pro/core";
+import { normalizeTime } from "../utils/time";
 
 interface Props {
   time: number | string;
-  position?: 'above' | 'below' | 'inBar' | 'aboveBar' | 'belowBar';
+  position?: "above" | "below" | "inBar" | "aboveBar" | "belowBar";
   color?: string;
-  shape?: 'circle' | 'square' | 'arrowUp' | 'arrowDown';
+  shape?: "circle" | "square" | "arrowUp" | "arrowDown";
   text?: string;
   size?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  position: 'aboveBar',
-  shape: 'circle',
+  position: "aboveBar",
+  shape: "circle",
   size: 1,
 });
 
-const series = inject<Ref<ExtendedSeriesApi | null>>('series');
+const series = inject<Ref<ExtendedSeriesApi | null>>("series");
 
 let marker: SeriesMarker<any> | null = null;
 let markerIndex = -1;
@@ -49,15 +49,18 @@ let markerIndex = -1;
  */
 function createOrUpdateMarker() {
   if (!series?.value) {
-    logger.warn('Series instance not available. Make sure Marker is a child of a Series component.', 'Marker');
+    logger.warn(
+      "Series instance not available. Make sure Marker is a child of a Series component.",
+      "Marker",
+    );
     return;
   }
 
   try {
     // Normalize position
     let normalizedPosition = props.position;
-    if (props.position === 'above') normalizedPosition = 'aboveBar';
-    if (props.position === 'below') normalizedPosition = 'belowBar';
+    if (props.position === "above") normalizedPosition = "aboveBar";
+    if (props.position === "below") normalizedPosition = "belowBar";
 
     // Get existing markers
     const existingMarkers = (series.value as any).markers?.() || [];
@@ -85,7 +88,7 @@ function createOrUpdateMarker() {
     // Update series markers
     createSeriesMarkers(series.value, markersToSet);
   } catch (error) {
-    logger.error('Failed to create marker', 'Marker', error);
+    logger.error("Failed to create marker", "Marker", error);
   }
 }
 
@@ -103,7 +106,7 @@ function removeMarker() {
       createSeriesMarkers(series.value, markersToSet);
     }
   } catch (error) {
-    logger.error('Failed to remove marker', 'Marker', error);
+    logger.error("Failed to remove marker", "Marker", error);
   }
 
   marker = null;
@@ -112,11 +115,18 @@ function removeMarker() {
 
 // Watch for prop changes and recreate marker
 watch(
-  () => ({ time: props.time, position: props.position, color: props.color, shape: props.shape, text: props.text, size: props.size }),
+  () => ({
+    time: props.time,
+    position: props.position,
+    color: props.color,
+    shape: props.shape,
+    text: props.text,
+    size: props.size,
+  }),
   () => {
     createOrUpdateMarker();
   },
-  { deep: true }
+  { deep: true },
 );
 
 onMounted(() => {

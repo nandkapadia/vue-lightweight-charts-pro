@@ -6,10 +6,15 @@
  * It implements the infinite history loading pattern.
  */
 
-import { ref, watch, onUnmounted, type Ref } from 'vue';
-import type { IChartApi, LogicalRange, Time, BusinessDay } from 'lightweight-charts';
-import type { SeriesConfig, LazyLoadingConfig, DataPoint } from '../types';
-import { normalizeTime } from '../utils/time';
+import { ref, watch, onUnmounted, type Ref } from "vue";
+import type {
+  IChartApi,
+  LogicalRange,
+  Time,
+  BusinessDay,
+} from "lightweight-charts";
+import type { SeriesConfig, LazyLoadingConfig, DataPoint } from "../types";
+import { normalizeTime } from "../utils/time";
 
 /**
  * Helper to safely convert Time (UTCTimestamp or BusinessDay) to seconds.
@@ -17,7 +22,13 @@ import { normalizeTime } from '../utils/time';
  */
 function timeToSeconds(time: Time): number {
   // Check if it's a BusinessDay object
-  if (typeof time === 'object' && time !== null && 'year' in time && 'month' in time && 'day' in time) {
+  if (
+    typeof time === "object" &&
+    time !== null &&
+    "year" in time &&
+    "month" in time &&
+    "day" in time
+  ) {
     const bd = time as BusinessDay;
     // Convert BusinessDay to UTC timestamp (seconds since epoch)
     // Treat as midnight UTC of that day
@@ -94,14 +105,14 @@ export interface UseLazyLoadingMethods {
   requestHistory: (
     seriesId: string,
     beforeTime: number,
-    direction: 'before' | 'after'
+    direction: "before" | "after",
   ) => void;
   /** Update lazy loading state after receiving history */
   handleHistoryResponse: (
     seriesId: string,
-    direction: 'before' | 'after',
+    direction: "before" | "after",
     hasMoreBefore: boolean,
-    hasMoreAfter: boolean
+    hasMoreAfter: boolean,
   ) => void;
   /** Reset all loading states */
   reset: () => void;
@@ -131,8 +142,8 @@ export interface UseLazyLoadingOptions {
     seriesId: string,
     paneId: number,
     beforeTime: number,
-    direction: 'before' | 'after',
-    count: number
+    direction: "before" | "after",
+    count: number,
   ) => void;
   /** Callback when history is loaded */
   onHistoryLoaded?: (seriesId: string, data: DataPoint[]) => void;
@@ -182,7 +193,9 @@ export interface UseLazyLoadingOptions {
  * </script>
  * ```
  */
-export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingReturn {
+export function useLazyLoading(
+  options: UseLazyLoadingOptions,
+): UseLazyLoadingReturn {
   const {
     chart,
     seriesConfigs,
@@ -228,7 +241,10 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
         }
 
         // Preserve loading state if series already exists and has pending requests
-        if (existingState && (existingState.isLoadingBefore || existingState.isLoadingAfter)) {
+        if (
+          existingState &&
+          (existingState.isLoadingBefore || existingState.isLoadingAfter)
+        ) {
           newStates.set(seriesId, {
             ...existingState,
             lazyLoading: { ...config.lazyLoading },
@@ -257,7 +273,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
     const seriesIds = new Set(newStates.keys());
     const keysToDelete: string[] = [];
     pendingRequests.value.forEach((key) => {
-      const seriesId = key.split('_')[0];
+      const seriesId = key.split("_")[0];
       if (!seriesIds.has(seriesId)) {
         keysToDelete.push(key);
       }
@@ -273,7 +289,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
   function requestHistory(
     seriesId: string,
     beforeTime: number,
-    direction: 'before' | 'after'
+    direction: "before" | "after",
   ): void {
     const state = loadingStates.value.get(seriesId);
     if (!state) return;
@@ -285,16 +301,16 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
     }
 
     // Check if we can load more in this direction
-    if (direction === 'before' && !state.lazyLoading.hasMoreBefore) {
+    if (direction === "before" && !state.lazyLoading.hasMoreBefore) {
       return;
     }
-    if (direction === 'after' && !state.lazyLoading.hasMoreAfter) {
+    if (direction === "after" && !state.lazyLoading.hasMoreAfter) {
       return;
     }
 
     // Mark as loading
     pendingRequests.value.add(requestKey);
-    if (direction === 'before') {
+    if (direction === "before") {
       state.isLoadingBefore = true;
     } else {
       state.isLoadingAfter = true;
@@ -308,7 +324,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
       state.paneId,
       beforeTime,
       direction,
-      state.lazyLoading.chunkSize || 500 // Default to 500 bars per chunk
+      state.lazyLoading.chunkSize || 500, // Default to 500 bars per chunk
     );
   }
 
@@ -318,9 +334,9 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
    */
   function handleHistoryResponse(
     seriesId: string,
-    direction: 'before' | 'after',
+    direction: "before" | "after",
     hasMoreBefore: boolean,
-    hasMoreAfter: boolean
+    hasMoreAfter: boolean,
   ): void {
     const state = loadingStates.value.get(seriesId);
     if (!state) return;
@@ -329,7 +345,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
     const requestKey = `${seriesId}_${direction}`;
     pendingRequests.value.delete(requestKey);
 
-    if (direction === 'before') {
+    if (direction === "before") {
       state.isLoadingBefore = false;
       state.lazyLoading.hasMoreBefore = hasMoreBefore;
     } else {
@@ -340,7 +356,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
     // CRITICAL: Update cached min/max timestamps and bar spacing after history merge
     // Find the series config to get updated data boundaries
     const config = seriesConfigs.value.find(
-      (c, i) => (c.seriesId || c.name || `series_${i}`) === seriesId
+      (c, i) => (c.seriesId || c.name || `series_${i}`) === seriesId,
     );
 
     if (config?.data?.length) {
@@ -360,7 +376,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
 
     // Update global loading state
     isLoading.value = Array.from(loadingStates.value.values()).some(
-      (s) => s.isLoadingBefore || s.isLoadingAfter
+      (s) => s.isLoadingBefore || s.isLoadingAfter,
     );
   }
 
@@ -407,7 +423,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
         !state.isLoadingBefore &&
         visibleFromTime <= minTime + timeThreshold
       ) {
-        requestHistory(seriesId, minTime, 'before');
+        requestHistory(seriesId, minTime, "before");
       }
 
       // Check if we're near the end (visible range approaching last data point)
@@ -416,7 +432,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
         !state.isLoadingAfter &&
         visibleToTime >= maxTime - timeThreshold
       ) {
-        requestHistory(seriesId, maxTime, 'after');
+        requestHistory(seriesId, maxTime, "after");
       }
     });
   }
@@ -448,7 +464,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
 
     // Check if any series has lazy loading enabled
     const hasLazyLoading = Array.from(loadingStates.value.values()).some(
-      (state) => state.lazyLoading.enabled
+      (state) => state.lazyLoading.enabled,
     );
 
     if (!hasLazyLoading) return;
@@ -497,7 +513,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
 
     // Find the series config to get updated data boundaries
     const config = seriesConfigs.value.find(
-      (c, i) => (c.seriesId || c.name || `series_${i}`) === seriesId
+      (c, i) => (c.seriesId || c.name || `series_${i}`) === seriesId,
     );
 
     if (config?.data?.length) {
@@ -525,7 +541,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
         subscribeToChart();
       }
     },
-    { immediate: true }
+    { immediate: true },
   );
 
   // Watch for series config changes
@@ -534,7 +550,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
     () => {
       initializeStates();
     },
-    { deep: true }
+    { deep: true },
   );
 
   // Initialize on creation

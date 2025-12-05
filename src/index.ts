@@ -82,7 +82,7 @@ export {
   PriceLine,
   Trade,
   Annotation,
-} from './components';
+} from "./components";
 
 // Composables
 export {
@@ -96,10 +96,10 @@ export {
   type UseLazyLoadingReturn,
   type UseLazyLoadingOptions,
   type UseSeriesOptions,
-} from './composables';
+} from "./composables";
 
 // Re-export useful core utilities
-export { TimeRange, type RangeConfig } from '@lightweight-charts-pro/core';
+export { TimeRange, type RangeConfig } from "@lightweight-charts-pro/core";
 
 // Types
 export type {
@@ -140,4 +140,4 @@ export type {
   ChartProps,
   ChartEmits,
   ChartState,
-} from './types';
+} from "./types";

@@ -9,12 +9,12 @@
  * @returns Unix timestamp in seconds
  */
 export function toTimestamp(time: number | string | Date): number {
-  if (typeof time === 'number') {
+  if (typeof time === "number") {
     // If it looks like milliseconds, convert to seconds
     return time > 1e12 ? Math.floor(time / 1000) : time;
   }
 
-  if (typeof time === 'string') {
+  if (typeof time === "string") {
     const parsed = Date.parse(time);
     return isNaN(parsed) ? 0 : Math.floor(parsed / 1000);
   }
@@ -35,16 +35,16 @@ export function toTimestamp(time: number | string | Date): number {
  */
 export function formatTimestamp(
   timestamp: number,
-  format: 'date' | 'datetime' | 'time' = 'date'
+  format: "date" | "datetime" | "time" = "date",
 ): string {
   const date = new Date(timestamp * 1000);
 
   switch (format) {
-    case 'date':
+    case "date":
       return date.toLocaleDateString();
-    case 'datetime':
+    case "datetime":
       return date.toLocaleString();
-    case 'time':
+    case "time":
       return date.toLocaleTimeString();
     default:
       return date.toLocaleDateString();
@@ -60,7 +60,7 @@ export function formatTimestamp(
  */
 export function deepMerge<T extends Record<string, unknown>>(
   target: T,
-  source: Partial<T>
+  source: Partial<T>,
 ): T {
   const result = { ...target };
 
@@ -69,13 +69,10 @@ export function deepMerge<T extends Record<string, unknown>>(
       const targetValue = target[key];
       const sourceValue = source[key];
 
-      if (
-        isPlainObject(targetValue) &&
-        isPlainObject(sourceValue)
-      ) {
+      if (isPlainObject(targetValue) && isPlainObject(sourceValue)) {
         result[key] = deepMerge(
           targetValue as Record<string, unknown>,
-          sourceValue as Record<string, unknown>
+          sourceValue as Record<string, unknown>,
         ) as T[typeof key];
       } else if (sourceValue !== undefined) {
         result[key] = sourceValue as T[typeof key];
@@ -90,7 +87,7 @@ export function deepMerge<T extends Record<string, unknown>>(
  * Check if value is a plain object.
  */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -102,7 +99,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  */
 export function debounce<T extends (...args: unknown[]) => unknown>(
   fn: T,
-  delay: number
+  delay: number,
 ): (...args: Parameters<T>) => void {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -127,7 +124,7 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
  */
 export function throttle<T extends (...args: unknown[]) => unknown>(
   fn: T,
-  limit: number
+  limit: number,
 ): (...args: Parameters<T>) => void {
   let lastCall = 0;
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -156,7 +153,7 @@ export function throttle<T extends (...args: unknown[]) => unknown>(
 /**
  * Generate a unique ID.
  */
-export function generateId(prefix: string = 'id'): string {
+export function generateId(prefix: string = "id"): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 

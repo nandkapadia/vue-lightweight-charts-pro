@@ -16,7 +16,7 @@ import {
   onUnmounted,
   provide,
   type PropType,
-} from 'vue';
+} from "vue";
 import {
   createChart,
   createSeriesMarkers,
@@ -25,13 +25,18 @@ import {
   type LogicalRange,
   type DeepPartial,
   type TimeChartOptions,
-} from 'lightweight-charts';
-import type { ChartOptions, SeriesConfig, DataPoint, Annotation } from '../types';
-import { RequestDirection } from '../types';
-import { useChartApi } from '../composables/useChartApi';
-import { useChartWebSocket } from '../composables/useChartWebSocket';
-import { useLazyLoading } from '../composables/useLazyLoading';
-import { normalizeDataPoints } from '../utils/time';
+} from "lightweight-charts";
+import type {
+  ChartOptions,
+  SeriesConfig,
+  DataPoint,
+  Annotation,
+} from "../types";
+import { RequestDirection } from "../types";
+import { useChartApi } from "../composables/useChartApi";
+import { useChartWebSocket } from "../composables/useChartWebSocket";
+import { useLazyLoading } from "../composables/useLazyLoading";
+import { normalizeDataPoints } from "../utils/time";
 
 // Import from core package for custom series and features
 import {
@@ -51,7 +56,7 @@ import {
 
   // Utilities
   logger,
-} from '@lightweight-charts-pro/core';
+} from "@lightweight-charts-pro/core";
 
 // Define props
 const props = defineProps({
@@ -63,12 +68,12 @@ const props = defineProps({
   /** Backend API URL */
   apiUrl: {
     type: String,
-    default: '/api/charts',
+    default: "/api/charts",
   },
   /** WebSocket URL */
   wsUrl: {
     type: String,
-    default: '',
+    default: "",
   },
   /** Chart configuration options */
   options: {
@@ -87,24 +92,28 @@ const props = defineProps({
   },
   /** Legend configurations (config-driven like Streamlit) */
   legends: {
-    type: Array as PropType<Array<{
-      text?: string;
-      corner?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-      paneId?: number;
-      valueFormat?: string;
-      style?: Record<string, string | number>;
-      isPanePrimitive?: boolean;
-    }>>,
+    type: Array as PropType<
+      Array<{
+        text?: string;
+        corner?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+        paneId?: number;
+        valueFormat?: string;
+        style?: Record<string, string | number>;
+        isPanePrimitive?: boolean;
+      }>
+    >,
     default: () => [],
   },
   /** Range switcher configurations (config-driven like Streamlit) */
   rangeSwitchers: {
-    type: Array as PropType<Array<{
-      ranges?: RangeConfig[];
-      corner?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-      paneId?: number;
-      style?: Record<string, string | number>;
-    }>>,
+    type: Array as PropType<
+      Array<{
+        ranges?: RangeConfig[];
+        corner?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+        paneId?: number;
+        style?: Record<string, string | number>;
+      }>
+    >,
     default: () => [],
   },
   /** Whether to auto-connect to WebSocket */
@@ -125,7 +134,7 @@ const props = defineProps({
   /** CSS class for container */
   containerClass: {
     type: String,
-    default: '',
+    default: "",
   },
   /** Show loading indicator during data fetches */
   showLoadingIndicator: {
@@ -147,21 +156,21 @@ const props = defineProps({
 // Define emits
 const emit = defineEmits<{
   /** Emitted when chart is ready */
-  (e: 'ready', chart: IChartApi): void;
+  (e: "ready", chart: IChartApi): void;
   /** Emitted when crosshair moves */
-  (e: 'crosshairMove', params: MouseEventParams): void;
+  (e: "crosshairMove", params: MouseEventParams): void;
   /** Emitted when time range changes */
-  (e: 'visibleTimeRangeChange', range: LogicalRange | null): void;
+  (e: "visibleTimeRangeChange", range: LogicalRange | null): void;
   /** Emitted when series is clicked */
-  (e: 'click', params: MouseEventParams): void;
+  (e: "click", params: MouseEventParams): void;
   /** Emitted on WebSocket connection */
-  (e: 'connected'): void;
+  (e: "connected"): void;
   /** Emitted on WebSocket disconnection */
-  (e: 'disconnected'): void;
+  (e: "disconnected"): void;
   /** Emitted on error */
-  (e: 'error', error: Error): void;
+  (e: "error", error: Error): void;
   /** Emitted when data is loaded */
-  (e: 'dataLoaded', seriesId: string, count: number): void;
+  (e: "dataLoaded", seriesId: string, count: number): void;
 }>();
 
 // Template refs
@@ -190,7 +199,6 @@ let chartLevelAnnotationMarkers: any[] = [];
 let resizeObserver: ResizeObserver | null = null;
 let initialFitDone = false; // Track if initial auto-fit has been done
 
-
 // API composable
 const api = useChartApi({ baseUrl: props.apiUrl });
 
@@ -203,9 +211,9 @@ const ws = props.wsUrl
         reconnect: { enabled: true },
       },
       {
-        onConnected: () => emit('connected'),
-        onDisconnected: () => emit('disconnected'),
-        onError: (err) => emit('error', err),
+        onConnected: () => emit("connected"),
+        onDisconnected: () => emit("disconnected"),
+        onError: (err) => emit("error", err),
         onHistoryResponse: (response) => {
           // Extract direction from response (should be provided by WebSocket message)
           // Fallback to 'before' if not specified (backward compatibility)
@@ -217,14 +225,14 @@ const ws = props.wsUrl
           if (response.error) {
             const errorMsg = `History request failed for series "${response.seriesId}": ${response.error}`;
             error.value = errorMsg;
-            emit('error', new Error(errorMsg));
+            emit("error", new Error(errorMsg));
 
             // Stop lazy-loading for this series (no more data available due to error)
             lazyLoadingState?.handleHistoryResponse(
               response.seriesId,
               direction,
               false, // No more data before
-              false  // No more data after
+              false, // No more data after
             );
             return;
           }
@@ -236,13 +244,17 @@ const ws = props.wsUrl
             response.seriesId,
             direction,
             response.hasMoreBefore,
-            response.hasMoreAfter
+            response.hasMoreAfter,
           );
         },
         onDataUpdate: async (update) => {
           // OPTIMIZATION: Use incremental data from WebSocket if available
           // instead of refetching entire dataset via REST
-          if (update.data && Array.isArray(update.data) && update.data.length > 0) {
+          if (
+            update.data &&
+            Array.isArray(update.data) &&
+            update.data.length > 0
+          ) {
             // Apply incremental update directly - O(m) instead of full refetch
             updateSeriesData(update.seriesId, update.data);
           } else {
@@ -250,7 +262,7 @@ const ws = props.wsUrl
             await refreshSeriesData(update.paneId, update.seriesId);
           }
         },
-      }
+      },
     )
   : null;
 
@@ -268,20 +280,37 @@ const lazyLoadingState = props.lazyLoading
           ws.requestHistory(paneId, seriesId, beforeTime, count, direction);
         } else {
           // Use REST API for history
-          api.getHistory(props.chartId, paneId, seriesId, beforeTime, count, direction)
+          api
+            .getHistory(
+              props.chartId,
+              paneId,
+              seriesId,
+              beforeTime,
+              count,
+              direction,
+            )
             .then((response) => {
               mergeHistoryData(seriesId, response.data, direction);
               lazyLoadingState?.handleHistoryResponse(
                 seriesId,
                 direction,
                 response.hasMoreBefore,
-                response.hasMoreAfter
+                response.hasMoreAfter,
               );
             })
             .catch((err) => {
-              error.value = err instanceof Error ? err.message : 'Failed to load history';
-              emit('error', err instanceof Error ? err : new Error(String(err)));
-              lazyLoadingState?.handleHistoryResponse(seriesId, direction, false, false);
+              error.value =
+                err instanceof Error ? err.message : "Failed to load history";
+              emit(
+                "error",
+                err instanceof Error ? err : new Error(String(err)),
+              );
+              lazyLoadingState?.handleHistoryResponse(
+                seriesId,
+                direction,
+                false,
+                false,
+              );
             })
             .finally(() => {
               // Clean up pending request
@@ -293,8 +322,8 @@ const lazyLoadingState = props.lazyLoading
   : null;
 
 // Provide chart instance to child components
-provide('chart', chart);
-provide('seriesMap', seriesMap);
+provide("chart", chart);
+provide("seriesMap", seriesMap);
 
 // Computed states for UI indicators
 const isLoadingData = computed(() => {
@@ -308,11 +337,15 @@ const errorMessage = computed(() => {
 const isEmptyState = computed(() => {
   // Empty if initialized but no series have data AND no more data to load
   // Don't show "No data" during lazy loading when hasMoreBefore/After is true
-  return isInitialized.value && seriesConfigs.value.every((s) => {
-    const noData = !s.data?.length;
-    const noMoreData = !s.lazyLoading?.hasMoreBefore && !s.lazyLoading?.hasMoreAfter;
-    return noData && noMoreData;
-  });
+  return (
+    isInitialized.value &&
+    seriesConfigs.value.every((s) => {
+      const noData = !s.data?.length;
+      const noMoreData =
+        !s.lazyLoading?.hasMoreBefore && !s.lazyLoading?.hasMoreAfter;
+      return noData && noMoreData;
+    })
+  );
 });
 
 /**
@@ -331,45 +364,57 @@ function initializeChart(): void {
 
   // Subscribe to events
   chart.value.subscribeCrosshairMove((params) => {
-    emit('crosshairMove', params);
+    emit("crosshairMove", params);
   });
 
   chart.value.subscribeClick((params) => {
-    emit('click', params);
+    emit("click", params);
   });
 
   chart.value.timeScale().subscribeVisibleLogicalRangeChange((range) => {
-    emit('visibleTimeRangeChange', range);
+    emit("visibleTimeRangeChange", range);
   });
 
   // Add chart-level annotations if available
   if (props.annotations?.length) {
     try {
-      const annotationVisuals = createAnnotationVisualElements(props.annotations as any);
+      const annotationVisuals = createAnnotationVisualElements(
+        props.annotations as any,
+      );
 
       // Store chart-level annotation markers to apply to series
       if (annotationVisuals.markers?.length) {
         chartLevelAnnotationMarkers = annotationVisuals.markers;
         logger.info(
           `Chart-level annotations created: ${annotationVisuals.markers.length} markers`,
-          'LightweightChart'
+          "LightweightChart",
         );
       }
 
       // Log other annotation elements (shapes/texts not yet supported)
       if (annotationVisuals.shapes?.length) {
-        logger.info(`Annotation shapes available: ${annotationVisuals.shapes.length}`, 'LightweightChart');
+        logger.info(
+          `Annotation shapes available: ${annotationVisuals.shapes.length}`,
+          "LightweightChart",
+        );
       }
       if (annotationVisuals.texts?.length) {
-        logger.info(`Text annotations available: ${annotationVisuals.texts.length}`, 'LightweightChart');
+        logger.info(
+          `Text annotations available: ${annotationVisuals.texts.length}`,
+          "LightweightChart",
+        );
       }
     } catch (err) {
-      logger.error('Failed to create chart annotations', 'LightweightChart', err);
+      logger.error(
+        "Failed to create chart annotations",
+        "LightweightChart",
+        err,
+      );
     }
   }
 
   isInitialized.value = true;
-  emit('ready', chart.value);
+  emit("ready", chart.value);
 }
 
 /**
@@ -380,7 +425,8 @@ function initializeChart(): void {
 function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
   if (!chart.value) return null;
 
-  const seriesId = config.seriesId || config.name || `series_${seriesMap.value.size}`;
+  const seriesId =
+    config.seriesId || config.name || `series_${seriesMap.value.size}`;
 
   try {
     // Normalize data timestamps to ensure consistent time handling (ms/s/string → seconds)
@@ -405,7 +451,10 @@ function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
     const series = createSeriesWithConfig(chart.value, extendedConfig);
 
     if (!series) {
-      logger.error(`Failed to create series: ${config.seriesType}`, 'LightweightChart');
+      logger.error(
+        `Failed to create series: ${config.seriesType}`,
+        "LightweightChart",
+      );
       return null;
     }
 
@@ -420,7 +469,9 @@ function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
     // Add series-level annotations if present
     if (config.annotations?.length) {
       try {
-        const annotationVisuals = createAnnotationVisualElements(config.annotations as any);
+        const annotationVisuals = createAnnotationVisualElements(
+          config.annotations as any,
+        );
 
         if (annotationVisuals.markers?.length) {
           allMarkers.push(...annotationVisuals.markers);
@@ -428,13 +479,19 @@ function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
 
         // Log other annotation elements (shapes/texts)
         if (annotationVisuals.shapes?.length) {
-          logger.info(`Annotation shapes available: ${annotationVisuals.shapes.length}`, 'LightweightChart');
+          logger.info(
+            `Annotation shapes available: ${annotationVisuals.shapes.length}`,
+            "LightweightChart",
+          );
         }
         if (annotationVisuals.texts?.length) {
-          logger.info(`Text annotations available: ${annotationVisuals.texts.length}`, 'LightweightChart');
+          logger.info(
+            `Text annotations available: ${annotationVisuals.texts.length}`,
+            "LightweightChart",
+          );
         }
       } catch (err) {
-        logger.error('Failed to create annotations', 'LightweightChart', err);
+        logger.error("Failed to create annotations", "LightweightChart", err);
       }
     }
 
@@ -448,13 +505,13 @@ function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
       try {
         createSeriesMarkers(series, allMarkers);
       } catch (err) {
-        logger.error('Failed to apply markers', 'LightweightChart', err);
+        logger.error("Failed to apply markers", "LightweightChart", err);
       }
     }
 
     // Update config with normalized data for consistent time handling in lazy loading
     const configIndex = seriesConfigs.value.findIndex(
-      (c) => (c.seriesId || c.name) === seriesId
+      (c) => (c.seriesId || c.name) === seriesId,
     );
     if (configIndex >= 0) {
       seriesConfigs.value[configIndex].data = normalizedData;
@@ -465,7 +522,11 @@ function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
     triggerRef(seriesMap);
     return series;
   } catch (err) {
-    logger.error(`Failed to create series ${config.seriesType}`, 'LightweightChart', err);
+    logger.error(
+      `Failed to create series ${config.seriesType}`,
+      "LightweightChart",
+      err,
+    );
     return null;
   }
 }
@@ -501,7 +562,12 @@ function removeSeries(seriesId: string): void {
  * - Non-monotonic: O(n log n) where n = total bars
  * - Initial load / replacement: O(n)
  */
-function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = false, skipNormalization = false): void {
+function updateSeriesData(
+  seriesId: string,
+  data: DataPoint[],
+  isInitialLoad = false,
+  skipNormalization = false,
+): void {
   const series = seriesMap.value.get(seriesId);
   if (!series) return;
 
@@ -510,10 +576,14 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
 
   // Find config
   const configIndex = seriesConfigs.value.findIndex(
-    (c) => (c.seriesId || c.name) === seriesId
+    (c) => (c.seriesId || c.name) === seriesId,
   );
 
-  if (isInitialLoad || configIndex < 0 || !seriesConfigs.value[configIndex].data?.length) {
+  if (
+    isInitialLoad ||
+    configIndex < 0 ||
+    !seriesConfigs.value[configIndex].data?.length
+  ) {
     // Initial load: use setData() for full dataset
     series.setData(normalizedData as Parameters<typeof series.setData>[0]);
 
@@ -525,7 +595,7 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
 
     // Detect if we need setData() instead of update()
     let needsSetData = false;
-    let reason = '';
+    let reason = "";
 
     // Case 1: History prepend (backfill) - incoming data extends before first bar
     if (existingData.length > 0 && normalizedData.length > 0) {
@@ -534,7 +604,7 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
 
       if (firstNewTime < firstExistingTime) {
         needsSetData = true;
-        reason = 'history prepend';
+        reason = "history prepend";
       }
     }
 
@@ -557,7 +627,9 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
 
       if (sizeShrink || timeRangeDisjoint || timeRangeReversed) {
         needsSetData = true;
-        reason = sizeShrink ? 'dataset shrink' : 'time range change (likely symbol switch)';
+        reason = sizeShrink
+          ? "dataset shrink"
+          : "time range change (likely symbol switch)";
       }
     }
 
@@ -570,7 +642,9 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
       }
 
       if (import.meta.env.DEV) {
-        console.log(`[LightweightChart] Using setData() for series "${seriesId}" due to ${reason}`);
+        console.log(
+          `[LightweightChart] Using setData() for series "${seriesId}" due to ${reason}`,
+        );
       }
     } else {
       // OPTIMIZATION: Check for monotonic append (common real-time case)
@@ -591,7 +665,7 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
             isIncomingDataSorted = false;
             if (import.meta.env.DEV) {
               console.warn(
-                `[LightweightChart] Incoming data for series "${seriesId}" is not sorted. Falling back to slow path.`
+                `[LightweightChart] Incoming data for series "${seriesId}" is not sorted. Falling back to slow path.`,
               );
             }
             break;
@@ -604,7 +678,9 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
         const lastExistingTime = existingData[existingData.length - 1].time;
 
         // Update last bar if it's in the new data
-        const updatedLastBar = normalizedData.find((bar) => bar.time === lastExistingTime);
+        const updatedLastBar = normalizedData.find(
+          (bar) => bar.time === lastExistingTime,
+        );
         if (updatedLastBar) {
           series.update(updatedLastBar as Parameters<typeof series.update>[0]);
           // Replace last bar in existing data
@@ -612,7 +688,9 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
         }
 
         // Append only truly new bars (time > lastExistingTime)
-        const newBars = normalizedData.filter((bar) => bar.time > lastExistingTime);
+        const newBars = normalizedData.filter(
+          (bar) => bar.time > lastExistingTime,
+        );
         newBars.forEach((bar) => {
           series.update(bar as Parameters<typeof series.update>[0]);
         });
@@ -626,15 +704,21 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
         const existingTimes = new Set(existingData.map((d) => d.time));
 
         // Find new bars (not in existing data)
-        const newBars = normalizedData.filter((bar) => !existingTimes.has(bar.time));
+        const newBars = normalizedData.filter(
+          (bar) => !existingTimes.has(bar.time),
+        );
 
         // Update existing bars that may have changed (e.g., last bar update)
         // Only update the last bar if it exists in new data (common for real-time updates)
         if (existingData.length > 0 && normalizedData.length > 0) {
           const lastExistingTime = existingData[existingData.length - 1].time;
-          const updatedLastBar = normalizedData.find((bar) => bar.time === lastExistingTime);
+          const updatedLastBar = normalizedData.find(
+            (bar) => bar.time === lastExistingTime,
+          );
           if (updatedLastBar) {
-            series.update(updatedLastBar as Parameters<typeof series.update>[0]);
+            series.update(
+              updatedLastBar as Parameters<typeof series.update>[0],
+            );
           }
         }
 
@@ -652,8 +736,11 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
             // No merge needed, existing data is already correct
             // Just update the last bar if it changed (already done above with series.update)
             if (existingData.length > 0 && normalizedData.length > 0) {
-              const lastExistingTime = existingData[existingData.length - 1].time;
-              const updatedLastBar = normalizedData.find((bar) => bar.time === lastExistingTime);
+              const lastExistingTime =
+                existingData[existingData.length - 1].time;
+              const updatedLastBar = normalizedData.find(
+                (bar) => bar.time === lastExistingTime,
+              );
               if (updatedLastBar) {
                 // Update the last bar in the config array
                 existingData[existingData.length - 1] = updatedLastBar;
@@ -661,14 +748,22 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
             }
           } else {
             // Case 2: Small number of new bars - check if they're all after existing
-            const lastExistingTime = existingData.length > 0 ? existingData[existingData.length - 1].time : -Infinity;
-            const allNewBarsAfterExisting = newBars.every((bar) => bar.time > lastExistingTime);
+            const lastExistingTime =
+              existingData.length > 0
+                ? existingData[existingData.length - 1].time
+                : -Infinity;
+            const allNewBarsAfterExisting = newBars.every(
+              (bar) => bar.time > lastExistingTime,
+            );
 
             if (allNewBarsAfterExisting) {
               // OPTIMIZATION: Simple append, no merge or sort needed
               // This handles the case where incoming data has both old and new bars,
               // but the new bars are all after existing (e.g., backfill + new ticks)
-              seriesConfigs.value[configIndex].data = [...existingData, ...newBars];
+              seriesConfigs.value[configIndex].data = [
+                ...existingData,
+                ...newBars,
+              ];
             } else {
               // Case 3: True non-monotonic merge - need full merge and sort
               // Build time-to-bar map for deduplication (newer bars overwrite older)
@@ -686,8 +781,14 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
 
               // Convert back to sorted array
               const mergedData = Array.from(mergedMap.values()).sort((a, b) => {
-                const timeA = typeof a.time === 'string' ? new Date(a.time).getTime() / 1000 : a.time;
-                const timeB = typeof b.time === 'string' ? new Date(b.time).getTime() / 1000 : b.time;
+                const timeA =
+                  typeof a.time === "string"
+                    ? new Date(a.time).getTime() / 1000
+                    : a.time;
+                const timeB =
+                  typeof b.time === "string"
+                    ? new Date(b.time).getTime() / 1000
+                    : b.time;
                 return timeA - timeB;
               });
 
@@ -699,7 +800,7 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
     }
   }
 
-  emit('dataLoaded', seriesId, normalizedData.length);
+  emit("dataLoaded", seriesId, normalizedData.length);
 
   // Sync lazy-loading bounds after data update (critical for live data)
   lazyLoadingState?.syncBounds(seriesId);
@@ -718,10 +819,10 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
 function mergeHistoryData(
   seriesId: string,
   newData: DataPoint[],
-  direction: 'before' | 'after'
+  direction: "before" | "after",
 ): void {
   const configIndex = seriesConfigs.value.findIndex(
-    (c) => (c.seriesId || c.name) === seriesId
+    (c) => (c.seriesId || c.name) === seriesId,
   );
   if (configIndex < 0) return;
 
@@ -732,37 +833,50 @@ function mergeHistoryData(
     const existingData = config.data || [];
     const incomingData = normalizeDataPoints(newData || []);
 
-    const merged = direction === RequestDirection.Before
-      ? [...incomingData, ...existingData]
-      : [...existingData, ...incomingData];
+    const merged =
+      direction === RequestDirection.Before
+        ? [...incomingData, ...existingData]
+        : [...existingData, ...incomingData];
 
     // Deduplicate by time (later entries win)
     const deduplicated = Array.from(
-      new Map(merged.map((point) => [point.time, point])).values()
+      new Map(merged.map((point) => [point.time, point])).values(),
     );
 
-    deduplicated.sort((a, b) => a.time - b.time);
+    deduplicated.sort((a, b) => (a.time as number) - (b.time as number));
 
     // Don't trigger auto-fit on history merges (only on initial load)
     // Data is already normalized, so skip re-normalization (performance optimization)
     updateSeriesData(seriesId, deduplicated, false, true);
   } catch (err) {
     // Critical: catch normalization errors to prevent leaving chart in broken state
-    const errorMessage = err instanceof Error ? err.message : 'Failed to merge history data';
+    const errorMessage =
+      err instanceof Error ? err.message : "Failed to merge history data";
     error.value = errorMessage;
-    emit('error', new Error(`History merge failed for series "${seriesId}": ${errorMessage}`));
+    emit(
+      "error",
+      new Error(
+        `History merge failed for series "${seriesId}": ${errorMessage}`,
+      ),
+    );
 
     // Clear pending lazy-load flags to prevent infinite loading state
     lazyLoadingState?.handleHistoryResponse(seriesId, direction, false, false);
 
-    console.error(`[LightweightChart] History merge error for series "${seriesId}":`, err);
+    console.error(
+      `[LightweightChart] History merge error for series "${seriesId}":`,
+      err,
+    );
   }
 }
 
 /**
  * Refresh series data from API.
  */
-async function refreshSeriesData(paneId: number, seriesId: string): Promise<void> {
+async function refreshSeriesData(
+  paneId: number,
+  seriesId: string,
+): Promise<void> {
   try {
     const response = await api.getSeriesData(props.chartId, paneId, seriesId);
     updateSeriesData(seriesId, response.data);
@@ -770,7 +884,7 @@ async function refreshSeriesData(paneId: number, seriesId: string): Promise<void
     // Update lazy loading state if chunked
     if (response.chunked && lazyLoadingState) {
       const configIndex = seriesConfigs.value.findIndex(
-        (c) => (c.seriesId || c.name) === seriesId
+        (c) => (c.seriesId || c.name) === seriesId,
       );
       if (configIndex >= 0) {
         seriesConfigs.value[configIndex].lazyLoading = {
@@ -783,8 +897,9 @@ async function refreshSeriesData(paneId: number, seriesId: string): Promise<void
       }
     }
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to refresh series data';
-    emit('error', err instanceof Error ? err : new Error(String(err)));
+    error.value =
+      err instanceof Error ? err.message : "Failed to refresh series data";
+    emit("error", err instanceof Error ? err : new Error(String(err)));
   }
 }
 
@@ -804,7 +919,12 @@ function initializeSeries(shouldAutoFit = false): void {
   });
 
   // Only auto-fit if explicitly requested (e.g., on initial mount) and not already done
-  if (shouldAutoFit && props.autoFit && seriesConfigs.value.some((c) => c.data?.length) && !initialFitDone) {
+  if (
+    shouldAutoFit &&
+    props.autoFit &&
+    seriesConfigs.value.some((c) => c.data?.length) &&
+    !initialFitDone
+  ) {
     chart.value.timeScale().fitContent();
     initialFitDone = true;
   }
@@ -819,15 +939,15 @@ function initializeLegends(): void {
   // Detach existing legends before clearing to prevent duplicates
   if (legendPrimitives.length > 0 && chart.value) {
     const panes = (chart.value as any).panes?.() || [];
-    legendPrimitives.forEach(primitive => {
+    legendPrimitives.forEach((primitive) => {
       try {
         // Try to detach from all panes
         panes.forEach((pane: any) => {
-          if (typeof pane.detachPrimitive === 'function') {
+          if (typeof pane.detachPrimitive === "function") {
             pane.detachPrimitive(primitive);
           }
         });
-      } catch (err) {
+      } catch {
         // Ignore errors during detachment
       }
     });
@@ -840,29 +960,39 @@ function initializeLegends(): void {
   props.legends.forEach((legendConfig, index) => {
     try {
       const config = {
-        corner: legendConfig.corner ?? 'top-left',
-        text: legendConfig.text ?? '<div style="color: #fff;">$$title$$: $$close$$</div>',
+        corner: legendConfig.corner ?? "top-left",
+        text:
+          legendConfig.text ??
+          '<div style="color: #fff;">$$title$$: $$close$$</div>',
         valueFormat: legendConfig.valueFormat,
         isPanePrimitive: legendConfig.isPanePrimitive ?? false,
         style: legendConfig.style,
-        ...(legendConfig.paneId !== undefined ? { paneId: legendConfig.paneId } : {}),
+        ...(legendConfig.paneId !== undefined
+          ? { paneId: legendConfig.paneId }
+          : {}),
       };
 
-      const legendPrimitive = new LegendPrimitive(`legend-${props.chartId}-${index}`, config);
+      const legendPrimitive = new LegendPrimitive(
+        `legend-${props.chartId}-${index}`,
+        config,
+      );
 
       const targetPaneId = legendConfig.paneId ?? 0;
       const panes = (chart.value as any).panes?.() || [];
       const targetPane = panes[targetPaneId] || panes[0];
 
-      if (targetPane && typeof targetPane.attachPrimitive === 'function') {
+      if (targetPane && typeof targetPane.attachPrimitive === "function") {
         targetPane.attachPrimitive(legendPrimitive);
         legendPrimitives.push(legendPrimitive);
-        logger.info(`Created legend at ${config.corner}`, 'LightweightChart');
+        logger.info(`Created legend at ${config.corner}`, "LightweightChart");
       } else {
-        logger.warn('Could not attach legend primitive to pane', 'LightweightChart');
+        logger.warn(
+          "Could not attach legend primitive to pane",
+          "LightweightChart",
+        );
       }
     } catch (err) {
-      logger.error('Failed to create legend', 'LightweightChart', err);
+      logger.error("Failed to create legend", "LightweightChart", err);
     }
   });
 }
@@ -876,15 +1006,15 @@ function initializeRangeSwitchers(): void {
   // Detach existing range switchers before clearing to prevent duplicates
   if (rangeSwitcherPrimitives.length > 0 && chart.value) {
     const panes = (chart.value as any).panes?.() || [];
-    rangeSwitcherPrimitives.forEach(primitive => {
+    rangeSwitcherPrimitives.forEach((primitive) => {
       try {
         // Try to detach from all panes
         panes.forEach((pane: any) => {
-          if (typeof pane.detachPrimitive === 'function') {
+          if (typeof pane.detachPrimitive === "function") {
             pane.detachPrimitive(primitive);
           }
         });
-      } catch (err) {
+      } catch {
         // Ignore errors during detachment
       }
     });
@@ -897,17 +1027,17 @@ function initializeRangeSwitchers(): void {
   props.rangeSwitchers.forEach((switcherConfig, index) => {
     try {
       const defaultRanges = [
-        { text: '1D', range: TimeRange.ONE_DAY },
-        { text: '1W', range: TimeRange.ONE_WEEK },
-        { text: '1M', range: TimeRange.ONE_MONTH },
-        { text: '3M', range: TimeRange.THREE_MONTHS },
-        { text: '6M', range: TimeRange.SIX_MONTHS },
-        { text: '1Y', range: TimeRange.ONE_YEAR },
-        { text: 'All', range: TimeRange.ALL },
+        { text: "1D", range: TimeRange.ONE_DAY },
+        { text: "1W", range: TimeRange.ONE_WEEK },
+        { text: "1M", range: TimeRange.ONE_MONTH },
+        { text: "3M", range: TimeRange.THREE_MONTHS },
+        { text: "6M", range: TimeRange.SIX_MONTHS },
+        { text: "1Y", range: TimeRange.ONE_YEAR },
+        { text: "All", range: TimeRange.ALL },
       ];
 
       const config = {
-        corner: switcherConfig.corner ?? 'top-right',
+        corner: switcherConfig.corner ?? "top-right",
         ranges: switcherConfig.ranges ?? defaultRanges,
         paneId: switcherConfig.paneId ?? 0,
         style: switcherConfig.style,
@@ -915,21 +1045,27 @@ function initializeRangeSwitchers(): void {
 
       const rangeSwitcherPrimitive = new RangeSwitcherPrimitive(
         `range-switcher-${props.chartId}-${index}`,
-        config
+        config,
       );
 
       const panes = (chart.value as any).panes?.() || [];
       const targetPane = panes[config.paneId] || panes[0];
 
-      if (targetPane && typeof targetPane.attachPrimitive === 'function') {
+      if (targetPane && typeof targetPane.attachPrimitive === "function") {
         targetPane.attachPrimitive(rangeSwitcherPrimitive);
         rangeSwitcherPrimitives.push(rangeSwitcherPrimitive);
-        logger.info(`Created range switcher at ${config.corner}`, 'LightweightChart');
+        logger.info(
+          `Created range switcher at ${config.corner}`,
+          "LightweightChart",
+        );
       } else {
-        logger.warn('Could not attach range switcher primitive to pane', 'LightweightChart');
+        logger.warn(
+          "Could not attach range switcher primitive to pane",
+          "LightweightChart",
+        );
       }
     } catch (err) {
-      logger.error('Failed to create range switcher', 'LightweightChart', err);
+      logger.error("Failed to create range switcher", "LightweightChart", err);
     }
   });
 }
@@ -939,7 +1075,10 @@ function initializeRangeSwitchers(): void {
  */
 function handleResize(): void {
   if (chart.value && containerRef.value) {
-    chart.value.resize(containerRef.value.clientWidth, props.options?.height || 400);
+    chart.value.resize(
+      containerRef.value.clientWidth,
+      props.options?.height || 400,
+    );
   }
 }
 
@@ -951,7 +1090,7 @@ watch(
       chart.value.applyOptions(newOptions as DeepPartial<TimeChartOptions>);
     }
   },
-  { deep: true }
+  { deep: true },
 );
 
 // Watch for series array identity changes (shallow watch)
@@ -965,17 +1104,18 @@ watch(
       seriesConfigs.value = [...newSeries];
       initializeSeries(false); // Don't auto-fit on prop changes
     }
-  }
+  },
 );
 
 // Watch for in-place data mutations (deep watch for nested data changes)
 // Detects when data is pushed/mutated without changing array reference
 watch(
-  () => props.series.map(s => ({
-    id: s.seriesId || s.name,
-    dataLength: s.data?.length || 0,
-    lastTime: s.data?.length ? s.data[s.data.length - 1]?.time : null
-  })),
+  () =>
+    props.series.map((s) => ({
+      id: s.seriesId || s.name,
+      dataLength: s.data?.length || 0,
+      lastTime: s.data?.length ? s.data[s.data.length - 1]?.time : null,
+    })),
   (newMetadata, oldMetadata) => {
     // Detect in-place mutations by comparing data length and last time
     newMetadata.forEach((newMeta, index) => {
@@ -992,7 +1132,7 @@ watch(
         if (config?.data) {
           // Update internal config
           const configIndex = seriesConfigs.value.findIndex(
-            (c) => (c.seriesId || c.name) === seriesId
+            (c) => (c.seriesId || c.name) === seriesId,
           );
           if (configIndex >= 0) {
             seriesConfigs.value[configIndex].data = [...config.data];
@@ -1004,15 +1144,15 @@ watch(
           if (import.meta.env.DEV) {
             console.warn(
               `[LightweightChart] In-place mutation detected for series "${seriesId}". ` +
-              `For better performance, replace the data array instead: ` +
-              `series[i].data = [...newData]`
+                `For better performance, replace the data array instead: ` +
+                `series[i].data = [...newData]`,
             );
           }
         }
       }
     });
   },
-  { deep: true }
+  { deep: true },
 );
 
 // Watch for legends changes (config-driven like Streamlit)
@@ -1021,7 +1161,7 @@ watch(
   () => {
     initializeLegends();
   },
-  { deep: true }
+  { deep: true },
 );
 
 // Watch for rangeSwitchers changes (config-driven like Streamlit)
@@ -1030,7 +1170,7 @@ watch(
   () => {
     initializeRangeSwitchers();
   },
-  { deep: true }
+  { deep: true },
 );
 
 // Watch for annotations changes (chart-level)
@@ -1042,7 +1182,7 @@ watch(
       // Re-apply markers to all series (preserving series markers/annotations)
       seriesMap.value.forEach((series, seriesId) => {
         const config = seriesConfigs.value.find(
-          (c) => (c.seriesId || c.name) === seriesId
+          (c) => (c.seriesId || c.name) === seriesId,
         );
         if (!config) return;
 
@@ -1056,12 +1196,18 @@ watch(
         // 2. Add series-level annotations (converted to markers)
         if (config.annotations?.length) {
           try {
-            const seriesAnnotationVisuals = createAnnotationVisualElements(config.annotations as any);
+            const seriesAnnotationVisuals = createAnnotationVisualElements(
+              config.annotations as any,
+            );
             if (seriesAnnotationVisuals.markers?.length) {
               allMarkers.push(...seriesAnnotationVisuals.markers);
             }
           } catch (err) {
-            logger.error(`Failed to convert series annotations for ${seriesId}`, 'LightweightChart', err);
+            logger.error(
+              `Failed to convert series annotations for ${seriesId}`,
+              "LightweightChart",
+              err,
+            );
           }
         }
 
@@ -1070,20 +1216,26 @@ watch(
         try {
           createSeriesMarkers(series, allMarkers);
         } catch (err) {
-          logger.error('Failed to clear chart annotations', 'LightweightChart', err);
+          logger.error(
+            "Failed to clear chart annotations",
+            "LightweightChart",
+            err,
+          );
         }
       });
       return;
     }
 
     try {
-      const annotationVisuals = createAnnotationVisualElements(newAnnotations as any);
+      const annotationVisuals = createAnnotationVisualElements(
+        newAnnotations as any,
+      );
       chartLevelAnnotationMarkers = annotationVisuals.markers || [];
 
       // Re-apply markers to all existing series
       seriesMap.value.forEach((series, seriesId) => {
         const config = seriesConfigs.value.find(
-          (c) => (c.seriesId || c.name) === seriesId
+          (c) => (c.seriesId || c.name) === seriesId,
         );
         if (!config) return;
 
@@ -1097,12 +1249,18 @@ watch(
         // 2. Add series-level annotations (converted to markers)
         if (config.annotations?.length) {
           try {
-            const seriesAnnotationVisuals = createAnnotationVisualElements(config.annotations as any);
+            const seriesAnnotationVisuals = createAnnotationVisualElements(
+              config.annotations as any,
+            );
             if (seriesAnnotationVisuals.markers?.length) {
               allMarkers.push(...seriesAnnotationVisuals.markers);
             }
           } catch (err) {
-            logger.error(`Failed to convert series annotations for ${seriesId}`, 'LightweightChart', err);
+            logger.error(
+              `Failed to convert series annotations for ${seriesId}`,
+              "LightweightChart",
+              err,
+            );
           }
         }
 
@@ -1114,14 +1272,22 @@ watch(
         try {
           createSeriesMarkers(series, allMarkers);
         } catch (err) {
-          logger.error(`Failed to update annotations for series ${seriesId}`, 'LightweightChart', err);
+          logger.error(
+            `Failed to update annotations for series ${seriesId}`,
+            "LightweightChart",
+            err,
+          );
         }
       });
     } catch (err) {
-      logger.error('Failed to update chart annotations', 'LightweightChart', err);
+      logger.error(
+        "Failed to update chart annotations",
+        "LightweightChart",
+        err,
+      );
     }
   },
-  { deep: true }
+  { deep: true },
 );
 
 // Watch for series identity changes (symbol switches, dataset replacements)
@@ -1131,7 +1297,7 @@ watch(
     // Reset auto-fit flag when series array identity changes (e.g., symbol switch)
     // This allows fitContent to trigger again for the new dataset
     initialFitDone = false;
-  }
+  },
 );
 
 // Lifecycle hooks
@@ -1198,7 +1364,9 @@ defineExpose({
   /** WebSocket client */
   ws,
   /** Loading state */
-  isLoading: computed(() => api.isLoading.value || (lazyLoadingState?.isLoading.value ?? false)),
+  isLoading: computed(
+    () => api.isLoading.value || (lazyLoadingState?.isLoading.value ?? false),
+  ),
   /** Error state */
   error: computed(() => api.error.value || error.value),
 });
@@ -1217,7 +1385,7 @@ defineExpose({
     >
       <slot name="loading">
         <div class="chart-indicator-content">
-          <span class="loading-spinner"></span>
+          <span class="loading-spinner" />
           <span class="loading-text">Loading data...</span>
         </div>
       </slot>
@@ -1276,7 +1444,9 @@ defineExpose({
   padding: 6px 12px;
   border-radius: 4px;
   font-size: 12px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+    Cantarell, sans-serif;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   backdrop-filter: blur(4px);
 }

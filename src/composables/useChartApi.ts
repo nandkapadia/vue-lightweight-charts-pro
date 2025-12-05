@@ -5,7 +5,7 @@
  * for chart data management, including CRUD operations and history fetching.
  */
 
-import { ref, shallowRef, type Ref, type ShallowRef } from 'vue';
+import { ref, shallowRef, type Ref, type ShallowRef } from "vue";
 import type {
   ChartData,
   CreateChartResponse,
@@ -15,17 +15,17 @@ import type {
   SetSeriesDataResponse,
   ApiError,
   HealthCheckResponse,
-} from '../types';
+} from "../types";
 
 /**
  * Type guard to check if a value is a valid ApiError object.
  */
 function isApiError(value: unknown): value is ApiError {
-  if (typeof value !== 'object' || value === null) {
+  if (typeof value !== "object" || value === null) {
     return false;
   }
   const obj = value as Record<string, unknown>;
-  return typeof obj.error === 'string' || typeof obj.detail === 'string';
+  return typeof obj.error === "string" || typeof obj.detail === "string";
 }
 
 /**
@@ -41,15 +41,17 @@ function extractErrorMessage(value: unknown, fallback: string): string {
 /**
  * Type guard to check if a value is a valid object (not null/array).
  */
-function isValidResponseObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+function isValidResponseObject(
+  value: unknown,
+): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isHealthCheckResponse(value: unknown): value is HealthCheckResponse {
   return (
     isValidResponseObject(value) &&
-    typeof value.status === 'string' &&
-    typeof value.version === 'string'
+    typeof value.status === "string" &&
+    typeof value.version === "string"
   );
 }
 
@@ -72,16 +74,23 @@ export interface UseChartApiMethods {
   /** Check backend health */
   healthCheck: () => Promise<HealthCheckResponse>;
   /** Create a new chart */
-  createChart: (chartId: string, options?: Record<string, unknown>) => Promise<CreateChartResponse>;
+  createChart: (
+    chartId: string,
+    options?: Record<string, unknown>,
+  ) => Promise<CreateChartResponse>;
   /** Get full chart data */
   getChart: (chartId: string) => Promise<ChartData>;
   /** Get series data with smart chunking */
-  getSeriesData: (chartId: string, paneId: number, seriesId: string) => Promise<GetSeriesDataResponse>;
+  getSeriesData: (
+    chartId: string,
+    paneId: number,
+    seriesId: string,
+  ) => Promise<GetSeriesDataResponse>;
   /** Set series data */
   setSeriesData: (
     chartId: string,
     seriesId: string,
-    request: SetSeriesDataRequest
+    request: SetSeriesDataRequest,
   ) => Promise<SetSeriesDataResponse>;
   /** Get historical data chunk */
   getHistory: (
@@ -90,7 +99,7 @@ export interface UseChartApiMethods {
     seriesId: string,
     time: number,
     count?: number,
-    direction?: 'before' | 'after'
+    direction?: "before" | "after",
   ) => Promise<GetHistoryResponse>;
   /** Clear error state */
   clearError: () => void;
@@ -139,12 +148,10 @@ export interface UseChartApiOptions {
  * </script>
  * ```
  */
-export function useChartApi(options: UseChartApiOptions = {}): UseChartApiReturn {
-  const {
-    baseUrl = '/api/charts',
-    timeout = 30000,
-    fetchFn = fetch,
-  } = options;
+export function useChartApi(
+  options: UseChartApiOptions = {},
+): UseChartApiReturn {
+  const { baseUrl = "/api/charts", timeout = 30000, fetchFn = fetch } = options;
 
   // Reactive state
   const isLoading = ref(false);
@@ -157,10 +164,7 @@ export function useChartApi(options: UseChartApiOptions = {}): UseChartApiReturn
   /**
    * Make an HTTP request to the API.
    */
-  async function request<T>(
-    endpoint: string,
-    init?: RequestInit
-  ): Promise<T> {
+  async function request<T>(endpoint: string, init?: RequestInit): Promise<T> {
     // Increment refcount and set loading state
     loadingRefCount++;
     isLoading.value = true;
@@ -170,12 +174,14 @@ export function useChartApi(options: UseChartApiOptions = {}): UseChartApiReturn
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
-      const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
+      const url = endpoint.startsWith("http")
+        ? endpoint
+        : `${baseUrl}${endpoint}`;
       const response = await fetchFn(url, {
         ...init,
         signal: controller.signal,
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           ...init?.headers,
         },
       });
@@ -184,7 +190,7 @@ export function useChartApi(options: UseChartApiOptions = {}): UseChartApiReturn
         const errorData: unknown = await response.json().catch(() => ({}));
         const errorMessage = extractErrorMessage(
           errorData,
-          `HTTP ${response.status}: ${response.statusText}`
+          `HTTP ${response.status}: ${response.statusText}`,
         );
         throw new Error(errorMessage);
       }
@@ -193,7 +199,7 @@ export function useChartApi(options: UseChartApiOptions = {}): UseChartApiReturn
 
       // Validate response is an object (basic structure check)
       if (!isValidResponseObject(result)) {
-        throw new Error('Invalid API response: expected object');
+        throw new Error("Invalid API response: expected object");
       }
 
       // Type assertion after validation
@@ -201,13 +207,13 @@ export function useChartApi(options: UseChartApiOptions = {}): UseChartApiReturn
       return result as T;
     } catch (err) {
       if (err instanceof Error) {
-        if (err.name === 'AbortError') {
-          error.value = 'Request timeout';
+        if (err.name === "AbortError") {
+          error.value = "Request timeout";
         } else {
           error.value = err.message;
         }
       } else {
-        error.value = 'Unknown error occurred';
+        error.value = "Unknown error occurred";
       }
       throw err;
     } finally {
@@ -230,10 +236,13 @@ export function useChartApi(options: UseChartApiOptions = {}): UseChartApiReturn
     // Health endpoint is at root, not under charts
     const healthUrl = (() => {
       try {
-        const parsed = new URL(baseUrl, typeof window !== 'undefined' ? window.location.origin : undefined);
+        const parsed = new URL(
+          baseUrl,
+          typeof window !== "undefined" ? window.location.origin : undefined,
+        );
         return `${parsed.origin}/health`;
       } catch {
-        return baseUrl.replace(/\/api\/charts$/, '') + '/health';
+        return baseUrl.replace(/\/api\/charts$/, "") + "/health";
       }
     })();
 
@@ -244,12 +253,12 @@ export function useChartApi(options: UseChartApiOptions = {}): UseChartApiReturn
       }
       const result: unknown = await response.json();
       if (!isHealthCheckResponse(result)) {
-        throw new Error('Invalid API response: expected health object');
+        throw new Error("Invalid API response: expected health object");
       }
       data.value = result;
       return result;
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Health check failed';
+      error.value = err instanceof Error ? err.message : "Health check failed";
       throw err;
     } finally {
       isLoading.value = false;
@@ -261,10 +270,10 @@ export function useChartApi(options: UseChartApiOptions = {}): UseChartApiReturn
    */
   async function createChart(
     chartId: string,
-    chartOptions?: Record<string, unknown>
+    chartOptions?: Record<string, unknown>,
   ): Promise<CreateChartResponse> {
     return request<CreateChartResponse>(`/${chartId}`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(chartOptions || {}),
     });
   }
@@ -285,9 +294,11 @@ export function useChartApi(options: UseChartApiOptions = {}): UseChartApiReturn
   async function getSeriesData(
     chartId: string,
     paneId: number,
-    seriesId: string
+    seriesId: string,
   ): Promise<GetSeriesDataResponse> {
-    return request<GetSeriesDataResponse>(`/${chartId}/data/${paneId}/${seriesId}`);
+    return request<GetSeriesDataResponse>(
+      `/${chartId}/data/${paneId}/${seriesId}`,
+    );
   }
 
   /**
@@ -296,10 +307,10 @@ export function useChartApi(options: UseChartApiOptions = {}): UseChartApiReturn
   async function setSeriesData(
     chartId: string,
     seriesId: string,
-    requestData: SetSeriesDataRequest
+    requestData: SetSeriesDataRequest,
   ): Promise<SetSeriesDataResponse> {
     return request<SetSeriesDataResponse>(`/${chartId}/data/${seriesId}`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(requestData),
     });
   }
@@ -316,20 +327,20 @@ export function useChartApi(options: UseChartApiOptions = {}): UseChartApiReturn
     seriesId: string,
     time: number,
     count: number = 500,
-    direction: 'before' | 'after' = 'before'
+    direction: "before" | "after" = "before",
   ): Promise<GetHistoryResponse> {
     const params = new URLSearchParams({
       count: count.toString(),
     });
 
-    if (direction === 'before') {
-      params.append('before_time', time.toString());
+    if (direction === "before") {
+      params.append("before_time", time.toString());
     } else {
-      params.append('after_time', time.toString());
+      params.append("after_time", time.toString());
     }
 
     return request<GetHistoryResponse>(
-      `/${chartId}/history/${paneId}/${seriesId}?${params}`
+      `/${chartId}/history/${paneId}/${seriesId}?${params}`,
     );
   }
 

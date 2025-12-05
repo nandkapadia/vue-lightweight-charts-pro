@@ -1,5 +1,5 @@
 <template>
-  <div style="display: none;">
+  <div style="display: none">
     <!-- Annotation is rendered by the chart - no DOM needed -->
   </div>
 </template>
@@ -25,18 +25,21 @@
  * </LightweightChart>
  */
 
-import { inject, onMounted, onUnmounted, watch, type Ref } from 'vue';
-import type { ExtendedSeriesApi } from '@lightweight-charts-pro/core';
-import { createAnnotationVisualElements, logger } from '@lightweight-charts-pro/core';
-import { createSeriesMarkers } from 'lightweight-charts';
-import { normalizeTime } from '../utils/time';
+import { inject, onMounted, onUnmounted, watch, type Ref } from "vue";
+import type { ExtendedSeriesApi } from "@lightweight-charts-pro/core";
+import {
+  createAnnotationVisualElements,
+  logger,
+} from "@lightweight-charts-pro/core";
+import { createSeriesMarkers } from "lightweight-charts";
+import { normalizeTime } from "../utils/time";
 
 interface Props {
   time: number | string;
   price?: number;
   text?: string;
-  type?: 'text' | 'arrow' | 'shape' | 'circle' | 'rectangle' | 'line';
-  position?: 'above' | 'below' | 'inBar' | 'aboveBar' | 'belowBar';
+  type?: "text" | "arrow" | "shape" | "circle" | "rectangle" | "line";
+  position?: "above" | "below" | "inBar" | "aboveBar" | "belowBar";
   color?: string;
   textColor?: string;
   backgroundColor?: string;
@@ -48,15 +51,15 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  type: 'text',
-  position: 'aboveBar',
-  color: '#2196F3',
-  textColor: '#131722',
-  backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  type: "text",
+  position: "aboveBar",
+  color: "#2196F3",
+  textColor: "#131722",
+  backgroundColor: "rgba(255, 255, 255, 0.9)",
   fontSize: 12,
 });
 
-const series = inject<Ref<ExtendedSeriesApi | null>>('series', null as any);
+const series = inject<Ref<ExtendedSeriesApi | null>>("series", null as any);
 
 let annotationMarkers: any[] = [];
 
@@ -66,7 +69,10 @@ let annotationMarkers: any[] = [];
 function createOrUpdateAnnotation() {
   // Can work with or without series (chart-level vs series-level)
   if (!series?.value) {
-    logger.warn('No series found. Chart-level annotations not yet fully implemented.', 'Annotation');
+    logger.warn(
+      "No series found. Chart-level annotations not yet fully implemented.",
+      "Annotation",
+    );
     return;
   }
 
@@ -83,18 +89,22 @@ function createOrUpdateAnnotation() {
       backgroundColor: props.backgroundColor,
       fontSize: props.fontSize,
       // Normalize time in points array as well
-      points: props.points?.map(p => ({ ...p, time: normalizeTime(p.time) })),
+      points: props.points?.map((p) => ({ ...p, time: normalizeTime(p.time) })),
       fillColor: props.fillColor,
       borderWidth: props.borderWidth,
     };
 
     // Create annotation visual elements
-    const annotationVisuals = createAnnotationVisualElements([annotationConfig as any]);
+    const annotationVisuals = createAnnotationVisualElements([
+      annotationConfig as any,
+    ]);
 
     // Remove old markers first
     if (annotationMarkers.length > 0) {
       const existingMarkers = (series.value as any).markers?.() || [];
-      const filtered = existingMarkers.filter((m: any) => !annotationMarkers.includes(m));
+      const filtered = existingMarkers.filter(
+        (m: any) => !annotationMarkers.includes(m),
+      );
       createSeriesMarkers(series.value, filtered);
       annotationMarkers = [];
     }
@@ -102,19 +112,28 @@ function createOrUpdateAnnotation() {
     // Apply new markers
     if (annotationVisuals.markers?.length && series.value) {
       const existingMarkers = (series.value as any).markers?.() || [];
-      createSeriesMarkers(series.value, [...existingMarkers, ...annotationVisuals.markers]);
+      createSeriesMarkers(series.value, [
+        ...existingMarkers,
+        ...annotationVisuals.markers,
+      ]);
       annotationMarkers = annotationVisuals.markers;
     }
 
     // Log shapes and texts (full rendering pending)
     if (annotationVisuals.shapes?.length) {
-      logger.warn(`Annotation shapes available: ${annotationVisuals.shapes.length}`, 'Annotation');
+      logger.warn(
+        `Annotation shapes available: ${annotationVisuals.shapes.length}`,
+        "Annotation",
+      );
     }
     if (annotationVisuals.texts?.length) {
-      logger.warn(`Annotation texts available: ${annotationVisuals.texts.length}`, 'Annotation');
+      logger.warn(
+        `Annotation texts available: ${annotationVisuals.texts.length}`,
+        "Annotation",
+      );
     }
   } catch (error) {
-    logger.error('Failed to create annotation', 'Annotation', error);
+    logger.error("Failed to create annotation", "Annotation", error);
   }
 }
 
@@ -126,11 +145,13 @@ function removeAnnotation() {
 
   try {
     const existingMarkers = (series.value as any).markers?.() || [];
-    const filtered = existingMarkers.filter((m: any) => !annotationMarkers.includes(m));
+    const filtered = existingMarkers.filter(
+      (m: any) => !annotationMarkers.includes(m),
+    );
     createSeriesMarkers(series.value, filtered);
     annotationMarkers = [];
   } catch (error) {
-    logger.error('Failed to remove annotation', 'Annotation', error);
+    logger.error("Failed to remove annotation", "Annotation", error);
   }
 }
 
@@ -150,7 +171,7 @@ watch(
   () => {
     createOrUpdateAnnotation();
   },
-  { deep: true }
+  { deep: true },
 );
 
 onMounted(() => {

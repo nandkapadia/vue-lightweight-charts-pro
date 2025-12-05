@@ -5,12 +5,16 @@
  * lightweight_charts_backend/websocket/handlers.py
  */
 
-import type { ChunkInfo, DataPoint } from './api';
+import type { ChunkInfo, DataPoint } from "./api";
 
 /**
  * WebSocket connection states.
  */
-export type WebSocketState = 'connecting' | 'connected' | 'disconnected' | 'error';
+export type WebSocketState =
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "error";
 
 /**
  * Base message type with common fields.
@@ -26,7 +30,7 @@ export interface BaseMessage {
  * Connection acknowledgment message from server.
  */
 export interface ConnectedMessage extends BaseMessage {
-  type: 'connected';
+  type: "connected";
   chartId: string;
 }
 
@@ -34,21 +38,21 @@ export interface ConnectedMessage extends BaseMessage {
  * Ping message for connection health.
  */
 export interface PingMessage extends BaseMessage {
-  type: 'ping';
+  type: "ping";
 }
 
 /**
  * Pong response to ping.
  */
 export interface PongMessage extends BaseMessage {
-  type: 'pong';
+  type: "pong";
 }
 
 /**
  * Request to get initial chart data.
  */
 export interface GetInitialDataMessage extends BaseMessage {
-  type: 'get_initial_data';
+  type: "get_initial_data";
   /** Optional pane filter */
   paneId?: number;
   /** Optional series filter */
@@ -59,14 +63,20 @@ export interface GetInitialDataMessage extends BaseMessage {
  * Response with initial chart data.
  */
 export interface InitialDataResponseMessage extends BaseMessage {
-  type: 'initial_data_response';
+  type: "initial_data_response";
   chartId: string;
   /** Panes data or single series data */
-  panes?: Record<string, Record<string, {
-    seriesType: string;
-    data: DataPoint[];
-    options: Record<string, unknown>;
-  }>>;
+  panes?: Record<
+    string,
+    Record<
+      string,
+      {
+        seriesType: string;
+        data: DataPoint[];
+        options: Record<string, unknown>;
+      }
+    >
+  >;
   /** Chart options */
   options?: Record<string, unknown>;
   /** Error message if request failed */
@@ -77,7 +87,7 @@ export interface InitialDataResponseMessage extends BaseMessage {
  * Request for historical data.
  */
 export interface RequestHistoryMessage extends BaseMessage {
-  type: 'request_history';
+  type: "request_history";
   /** Pane index */
   paneId: number;
   /** Series identifier */
@@ -94,7 +104,7 @@ export interface RequestHistoryMessage extends BaseMessage {
  * Response with historical data.
  */
 export interface HistoryResponseMessage extends BaseMessage {
-  type: 'history_response';
+  type: "history_response";
   chartId: string;
   /** Pane index */
   paneId: number;
@@ -111,7 +121,7 @@ export interface HistoryResponseMessage extends BaseMessage {
   /** Total available data points */
   totalCount: number;
   /** Direction of the history request ('before' or 'after') */
-  direction?: 'before' | 'after';
+  direction?: "before" | "after";
   /** Error message if request failed */
   error?: string;
 }
@@ -120,7 +130,7 @@ export interface HistoryResponseMessage extends BaseMessage {
  * Real-time data update notification.
  */
 export interface DataUpdateMessage extends BaseMessage {
-  type: 'data_update';
+  type: "data_update";
   chartId: string;
   /** Pane that was updated */
   paneId: number;
