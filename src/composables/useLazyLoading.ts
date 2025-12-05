@@ -308,7 +308,7 @@ export function useLazyLoading(options: UseLazyLoadingOptions): UseLazyLoadingRe
       state.paneId,
       beforeTime,
       direction,
-      state.lazyLoading.chunkSize
+      state.lazyLoading.chunkSize || 500 // Default to 500 bars per chunk
     );
   }
 
