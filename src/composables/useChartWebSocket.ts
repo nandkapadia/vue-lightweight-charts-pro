@@ -279,12 +279,32 @@ export function useChartWebSocket(
 
   /**
    * Handle WebSocket errors.
+   * Closes the socket and triggers reconnect if enabled.
    */
   function handleError(_event: Event): void {
-    state.value = 'error';
     const errorMessage = 'WebSocket connection error';
     error.value = errorMessage;
     handlers.onError?.(new Error(errorMessage));
+
+    // Close the socket to clean up resources
+    if (socket) {
+      socket.close();
+      socket = null;
+    }
+
+    state.value = 'error';
+    stopPingInterval();
+
+    // Attempt reconnection if not manually disconnected
+    if (!isManualDisconnect && reconnect.enabled && !reconnectTimer) {
+      const maxAttempts = reconnect.maxAttempts ?? DEFAULT_RECONNECT.maxAttempts;
+      if (reconnectAttempts.value < maxAttempts) {
+        console.log('WebSocket error occurred, scheduling reconnect...');
+        scheduleReconnect();
+      } else {
+        error.value = `Max reconnection attempts (${maxAttempts}) reached after error`;
+      }
+    }
   }
 
   /**
