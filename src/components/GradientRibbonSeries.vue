@@ -1,8 +1,5 @@
 <template>
-  <Series
-    type="gradientribbon"
-    v-bind="seriesProps"
-  >
+  <Series type="gradientribbon" v-bind="seriesProps">
     <slot />
   </Series>
 </template>

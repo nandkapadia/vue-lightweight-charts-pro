@@ -1,8 +1,5 @@
 <template>
-  <Series
-    type="bar"
-    v-bind="seriesProps"
-  >
+  <Series type="bar" v-bind="seriesProps">
     <slot />
   </Series>
 </template>

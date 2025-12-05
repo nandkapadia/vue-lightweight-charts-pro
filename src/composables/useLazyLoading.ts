@@ -548,11 +548,12 @@ export function useLazyLoading(
   // Deep watching would trigger on every data append (O(n) per tick)
   // Use syncBounds() for explicit updates after data changes
   watch(
-    () => seriesConfigs.value.map((c) => ({
-      id: c.seriesId || c.name,
-      paneId: c.paneId,
-      lazyLoading: c.lazyLoading, // Shallow reference
-    })),
+    () =>
+      seriesConfigs.value.map((c) => ({
+        id: c.seriesId || c.name,
+        paneId: c.paneId,
+        lazyLoading: c.lazyLoading, // Shallow reference
+      })),
     () => {
       initializeStates();
     },

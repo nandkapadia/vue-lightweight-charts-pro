@@ -1,8 +1,5 @@
 <template>
-  <Series
-    type="trendfill"
-    v-bind="seriesProps"
-  >
+  <Series type="trendfill" v-bind="seriesProps">
     <slot />
   </Series>
 </template>

@@ -43,7 +43,8 @@ describe('Dual-Approach Integration (Config + Components)', () => {
 
       await nextTick();
       const seriesMap = (wrapper.vm as any).seriesMap;
-      expect(seriesMap.has('candles')).toBe(true);
+      // Series IDs are now namespaced by pane to prevent collisions
+      expect(seriesMap.has('pane0-candles')).toBe(true);
     });
 
     it('works with legends config', async () => {
@@ -103,7 +104,8 @@ describe('Dual-Approach Integration (Config + Components)', () => {
 
       await nextTick();
       const seriesMap = (wrapper.vm as any).seriesMap;
-      expect(seriesMap.has('line')).toBe(true);
+      // Series IDs are now namespaced by pane to prevent collisions
+      expect(seriesMap.has('pane0-line')).toBe(true);
     });
   });
 

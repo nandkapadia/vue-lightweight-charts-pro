@@ -303,7 +303,12 @@ const ws = props.wsUrl
           }
 
           if (response.data?.length) {
-            mergeHistoryData(paneId, response.seriesId, response.data, direction);
+            mergeHistoryData(
+              paneId,
+              response.seriesId,
+              response.data,
+              direction,
+            );
           }
           lazyLoadingState?.handleHistoryResponse(
             namespacedId,
@@ -589,8 +594,7 @@ function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
     // Update config with normalized data for consistent time handling in lazy loading
     const configIndex = seriesConfigs.value.findIndex(
       (c) =>
-        (c.seriesId || c.name) === baseSeriesId &&
-        (c.paneId ?? 0) === paneId,
+        (c.seriesId || c.name) === baseSeriesId && (c.paneId ?? 0) === paneId,
     );
     if (configIndex >= 0) {
       seriesConfigs.value[configIndex].data = normalizedData;
@@ -1227,8 +1231,7 @@ watch(
           // Update internal config
           const configIndex = seriesConfigs.value.findIndex(
             (c) =>
-              (c.seriesId || c.name) === seriesId &&
-              (c.paneId ?? 0) === paneId,
+              (c.seriesId || c.name) === seriesId && (c.paneId ?? 0) === paneId,
           );
           if (configIndex >= 0) {
             seriesConfigs.value[configIndex].data = [...config.data];
@@ -1492,10 +1495,7 @@ defineExpose({
       v-if="showErrorIndicator && errorMessage"
       class="chart-indicator chart-error"
     >
-      <slot
-        name="error"
-        :error="errorMessage"
-      >
+      <slot name="error" :error="errorMessage">
         <div class="chart-indicator-content">
           <span class="error-icon">⚠️</span>
           <span class="error-text">{{ errorMessage }}</span>

@@ -1,8 +1,5 @@
 <template>
-  <Series
-    type="signal"
-    v-bind="seriesProps"
-  >
+  <Series type="signal" v-bind="seriesProps">
     <slot />
   </Series>
 </template>
