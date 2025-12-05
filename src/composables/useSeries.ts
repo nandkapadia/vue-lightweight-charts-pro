@@ -199,7 +199,7 @@ export function useSeries(props: UseSeriesOptions) {
       // 3. First timestamp moving backward: history prepend/backfill
       const isBackfill = newFirstTime < existingFirstTime;
 
-      // If any replacement condition is met, use setData() to clear old bars
+      // If replacement condition is met, use setData()
       if (isShrink || isNonOverlapping) {
         logger.info(
           `Dataset replacement detected (shrink: ${isShrink}, non-overlapping: ${isNonOverlapping}). Using setData()`,
@@ -207,6 +207,35 @@ export function useSeries(props: UseSeriesOptions) {
         );
         series.value.setData(normalizedData as any);
         previousData.value = normalizedData;
+        return;
+      }
+
+      // If backfill (history prepend), merge and use setData()
+      // lightweight-charts ignores update() calls for earlier timestamps
+      if (isBackfill) {
+        logger.info('Backfill detected. Merging history with existing data.', 'useSeries');
+
+        // Merge: new historical data first, then existing data
+        // Build map for deduplication (newer bars overwrite)
+        const mergedMap = new Map<number | string, DataPoint & { time: number }>();
+
+        // Add existing bars
+        previousData.value.forEach((bar) => {
+          mergedMap.set(bar.time, bar);
+        });
+
+        // Add/overwrite with new bars (incoming data wins for conflicts)
+        normalizedData.forEach((bar) => {
+          mergedMap.set(bar.time, bar);
+        });
+
+        // Convert to sorted array
+        const mergedData = Array.from(mergedMap.values()).sort((a, b) => {
+          return (a.time as number) - (b.time as number);
+        });
+
+        series.value.setData(mergedData as any);
+        previousData.value = mergedData;
         return;
       }
 

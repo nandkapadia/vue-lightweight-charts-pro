@@ -230,25 +230,56 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
       // No existing data tracked, use setData
       series.setData(normalizedData as Parameters<typeof series.setData>[0]);
     } else {
-      // Build set of existing times for O(1) lookup
-      const existingTimes = new Set(existingData.map((d) => d.time));
+      // DETECTION: Check for backfill (history prepend)
+      const existingFirstTime = existingData[0].time;
+      const newFirstTime = normalizedData[0].time;
+      const isBackfill = newFirstTime < existingFirstTime;
 
-      // Find new bars (not in existing data)
-      const newBars = normalizedData.filter((bar) => !existingTimes.has(bar.time));
+      if (isBackfill) {
+        // Backfill detected: merge and use setData()
+        // lightweight-charts ignores update() calls for earlier timestamps
+        const mergedMap = new Map<number | string, DataPoint>();
 
-      // Update last bar if changed (real-time tick)
-      if (existingData.length > 0 && normalizedData.length > 0) {
-        const lastExistingTime = existingData[existingData.length - 1].time;
-        const updatedLastBar = normalizedData.find((bar) => bar.time === lastExistingTime);
-        if (updatedLastBar) {
-          series.update(updatedLastBar as Parameters<typeof series.update>[0]);
+        // Add existing bars
+        existingData.forEach((bar) => {
+          mergedMap.set(bar.time, bar);
+        });
+
+        // Add/overwrite with new bars
+        normalizedData.forEach((bar) => {
+          mergedMap.set(bar.time, bar);
+        });
+
+        // Convert to sorted array
+        const mergedData = Array.from(mergedMap.values()).sort((a, b) => {
+          const timeA = typeof a.time === 'number' ? a.time : new Date(a.time).getTime() / 1000;
+          const timeB = typeof b.time === 'number' ? b.time : new Date(b.time).getTime() / 1000;
+          return timeA - timeB;
+        });
+
+        series.setData(mergedData as Parameters<typeof series.setData>[0]);
+      } else {
+        // Incremental update: use update() for better performance
+        // Build set of existing times for O(1) lookup
+        const existingTimes = new Set(existingData.map((d) => d.time));
+
+        // Find new bars (not in existing data)
+        const newBars = normalizedData.filter((bar) => !existingTimes.has(bar.time));
+
+        // Update last bar if changed (real-time tick)
+        if (existingData.length > 0 && normalizedData.length > 0) {
+          const lastExistingTime = existingData[existingData.length - 1].time;
+          const updatedLastBar = normalizedData.find((bar) => bar.time === lastExistingTime);
+          if (updatedLastBar) {
+            series.update(updatedLastBar as Parameters<typeof series.update>[0]);
+          }
         }
-      }
 
-      // Append new bars using update() - O(1) per bar instead of O(n) for entire dataset
-      newBars.forEach((bar) => {
-        series.update(bar as Parameters<typeof series.update>[0]);
-      });
+        // Append new bars using update() - O(1) per bar instead of O(n) for entire dataset
+        newBars.forEach((bar) => {
+          series.update(bar as Parameters<typeof series.update>[0]);
+        });
+      }
     }
   }
 }
