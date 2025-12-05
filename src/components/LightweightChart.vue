@@ -480,52 +480,104 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
       seriesConfigs.value[configIndex].data = normalizedData;
     }
   } else {
-    // Incremental update: use update() for new/changed bars only
     const existingData = seriesConfigs.value[configIndex].data || [];
-    const existingTimes = new Set(existingData.map((d) => d.time));
 
-    // Find new bars (not in existing data)
-    const newBars = normalizedData.filter((bar) => !existingTimes.has(bar.time));
+    // Detect if we need setData() instead of update()
+    let needsSetData = false;
+    let reason = '';
 
-    // Update existing bars that may have changed (e.g., last bar update)
-    // Only update the last bar if it exists in new data (common for real-time updates)
+    // Case 1: History prepend (backfill) - incoming data extends before first bar
     if (existingData.length > 0 && normalizedData.length > 0) {
-      const lastExistingTime = existingData[existingData.length - 1].time;
-      const updatedLastBar = normalizedData.find((bar) => bar.time === lastExistingTime);
-      if (updatedLastBar) {
-        series.update(updatedLastBar as Parameters<typeof series.update>[0]);
+      const firstExistingTime = existingData[0].time;
+      const firstNewTime = normalizedData[0].time;
+
+      if (firstNewTime < firstExistingTime) {
+        needsSetData = true;
+        reason = 'history prepend';
       }
     }
 
-    // Append new bars using update() - O(1) per bar instead of O(n) for entire dataset
-    newBars.forEach((bar) => {
-      series.update(bar as Parameters<typeof series.update>[0]);
-    });
+    // Case 2: Dataset replacement - significant shrink or different time range
+    if (!needsSetData && existingData.length > 0 && normalizedData.length > 0) {
+      // Check for significant dataset shrink (< 50% of original size)
+      const sizeShrink = normalizedData.length < existingData.length * 0.5;
 
-    // CRITICAL: Merge new bars into existing array to preserve history for lazy loading
-    // Don't overwrite with just the new payload - this would lose all prior history
-    if (configIndex >= 0) {
-      // Build time-to-bar map for deduplication (newer bars overwrite older)
-      const mergedMap = new Map<number | string, DataPoint>();
+      // Check if new data starts much later (e.g., symbol switch)
+      const firstExistingTime = existingData[0].time;
+      const lastExistingTime = existingData[existingData.length - 1].time;
+      const firstNewTime = normalizedData[0].time;
+      const lastNewTime = normalizedData[normalizedData.length - 1].time;
 
-      // Add existing bars
-      existingData.forEach((bar) => {
-        mergedMap.set(bar.time, bar);
+      // If new data starts after existing data ended, it's a replacement
+      const timeRangeDisjoint = firstNewTime > lastExistingTime;
+
+      // If new data ends before existing data started, it's a replacement
+      const timeRangeReversed = lastNewTime < firstExistingTime;
+
+      if (sizeShrink || timeRangeDisjoint || timeRangeReversed) {
+        needsSetData = true;
+        reason = sizeShrink ? 'dataset shrink' : 'time range change (likely symbol switch)';
+      }
+    }
+
+    if (needsSetData) {
+      // Use setData() for dataset replacement or history backfill
+      series.setData(normalizedData as Parameters<typeof series.setData>[0]);
+
+      if (configIndex >= 0) {
+        seriesConfigs.value[configIndex].data = normalizedData;
+      }
+
+      if (import.meta.env.DEV) {
+        console.log(`[LightweightChart] Using setData() for series "${seriesId}" due to ${reason}`);
+      }
+    } else {
+      // Incremental update: use update() for new/changed bars only
+      const existingTimes = new Set(existingData.map((d) => d.time));
+
+      // Find new bars (not in existing data)
+      const newBars = normalizedData.filter((bar) => !existingTimes.has(bar.time));
+
+      // Update existing bars that may have changed (e.g., last bar update)
+      // Only update the last bar if it exists in new data (common for real-time updates)
+      if (existingData.length > 0 && normalizedData.length > 0) {
+        const lastExistingTime = existingData[existingData.length - 1].time;
+        const updatedLastBar = normalizedData.find((bar) => bar.time === lastExistingTime);
+        if (updatedLastBar) {
+          series.update(updatedLastBar as Parameters<typeof series.update>[0]);
+        }
+      }
+
+      // Append new bars using update() - O(1) per bar instead of O(n) for entire dataset
+      newBars.forEach((bar) => {
+        series.update(bar as Parameters<typeof series.update>[0]);
       });
 
-      // Add/overwrite with new bars (newer data wins)
-      normalizedData.forEach((bar) => {
-        mergedMap.set(bar.time, bar);
-      });
+      // CRITICAL: Merge new bars into existing array to preserve history for lazy loading
+      // Don't overwrite with just the new payload - this would lose all prior history
+      if (configIndex >= 0) {
+        // Build time-to-bar map for deduplication (newer bars overwrite older)
+        const mergedMap = new Map<number | string, DataPoint>();
 
-      // Convert back to sorted array
-      const mergedData = Array.from(mergedMap.values()).sort((a, b) => {
-        const timeA = typeof a.time === 'string' ? new Date(a.time).getTime() / 1000 : a.time;
-        const timeB = typeof b.time === 'string' ? new Date(b.time).getTime() / 1000 : b.time;
-        return timeA - timeB;
-      });
+        // Add existing bars
+        existingData.forEach((bar) => {
+          mergedMap.set(bar.time, bar);
+        });
 
-      seriesConfigs.value[configIndex].data = mergedData;
+        // Add/overwrite with new bars (newer data wins)
+        normalizedData.forEach((bar) => {
+          mergedMap.set(bar.time, bar);
+        });
+
+        // Convert back to sorted array
+        const mergedData = Array.from(mergedMap.values()).sort((a, b) => {
+          const timeA = typeof a.time === 'string' ? new Date(a.time).getTime() / 1000 : a.time;
+          const timeB = typeof b.time === 'string' ? new Date(b.time).getTime() / 1000 : b.time;
+          return timeA - timeB;
+        });
+
+        seriesConfigs.value[configIndex].data = mergedData;
+      }
     }
   }
 
