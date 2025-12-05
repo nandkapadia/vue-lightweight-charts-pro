@@ -58,6 +58,16 @@ import {
   logger,
 } from "@lightweight-charts-pro/core";
 
+/**
+ * Generate a namespaced series ID to prevent collisions across panes.
+ * @param paneId - The pane index
+ * @param seriesId - The series identifier
+ * @returns Namespaced series ID in format "pane{paneId}-{seriesId}"
+ */
+function getNamespacedSeriesId(paneId: number, seriesId: string): string {
+  return `pane${paneId}-${seriesId}`;
+}
+
 // Define props
 const props = defineProps({
   /** Unique chart identifier */
@@ -214,11 +224,66 @@ const ws = props.wsUrl
         onConnected: () => emit("connected"),
         onDisconnected: () => emit("disconnected"),
         onError: (err) => emit("error", err),
+        onInitialData: (response) => {
+          // Handle WebSocket initial data response
+          if (response.error) {
+            const errorMsg = `Initial data request failed: ${response.error}`;
+            error.value = errorMsg;
+            emit("error", new Error(errorMsg));
+            return;
+          }
+
+          // Apply chart options if provided
+          if (response.options && chart.value) {
+            chart.value.applyOptions(
+              response.options as DeepPartial<TimeChartOptions>,
+            );
+          }
+
+          // Apply pane data if provided
+          if (response.panes) {
+            Object.entries(response.panes).forEach(([paneIdStr, paneData]) => {
+              const paneId = parseInt(paneIdStr, 10);
+              Object.entries(paneData).forEach(([seriesId, seriesData]) => {
+                // Check if this series already exists in config
+                const existingConfigIndex = seriesConfigs.value.findIndex(
+                  (c) =>
+                    (c.seriesId || c.name) === seriesId &&
+                    (c.paneId ?? 0) === paneId,
+                );
+
+                if (existingConfigIndex >= 0) {
+                  // Update existing series with WS data
+                  updateSeriesData(paneId, seriesId, seriesData.data, true);
+                } else {
+                  // Create new series from WS data
+                  const newConfig: SeriesConfig = {
+                    seriesType: seriesData.seriesType as any,
+                    data: seriesData.data,
+                    options: seriesData.options as any,
+                    paneId: paneId,
+                    seriesId: seriesId,
+                  };
+                  seriesConfigs.value.push(newConfig);
+                  createSeries(newConfig);
+                }
+              });
+            });
+          }
+
+          logger.info(
+            "WebSocket initial data applied to chart",
+            "LightweightChart",
+          );
+        },
         onHistoryResponse: (response) => {
           // Extract direction from response (should be provided by WebSocket message)
           // Fallback to 'before' if not specified (backward compatibility)
           const direction = response.direction || RequestDirection.Before;
-          const requestKey = `${response.seriesId}_${response.paneId || 0}_${direction}`;
+          const paneId = response.paneId || 0;
+          // Namespace series ID to match seriesMap keys
+          const namespacedId = getNamespacedSeriesId(paneId, response.seriesId);
+          const requestKey = `${namespacedId}_${direction}`;
           pendingHistoryRequests.delete(requestKey);
 
           // Check for server-side errors in history response
@@ -229,7 +294,7 @@ const ws = props.wsUrl
 
             // Stop lazy-loading for this series (no more data available due to error)
             lazyLoadingState?.handleHistoryResponse(
-              response.seriesId,
+              namespacedId,
               direction,
               false, // No more data before
               false, // No more data after
@@ -238,10 +303,10 @@ const ws = props.wsUrl
           }
 
           if (response.data?.length) {
-            mergeHistoryData(response.seriesId, response.data, direction);
+            mergeHistoryData(paneId, response.seriesId, response.data, direction);
           }
           lazyLoadingState?.handleHistoryResponse(
-            response.seriesId,
+            namespacedId,
             direction,
             response.hasMoreBefore,
             response.hasMoreAfter,
@@ -256,7 +321,7 @@ const ws = props.wsUrl
             update.data.length > 0
           ) {
             // Apply incremental update directly - O(m) instead of full refetch
-            updateSeriesData(update.seriesId, update.data);
+            updateSeriesData(update.paneId, update.seriesId, update.data);
           } else {
             // Fallback: refetch via REST if no data in message (backward compatibility)
             await refreshSeriesData(update.paneId, update.seriesId);
@@ -272,8 +337,10 @@ const lazyLoadingState = props.lazyLoading
       chart,
       seriesConfigs,
       onRequestHistory: (seriesId, paneId, beforeTime, direction, count) => {
+        // Namespace series ID for seriesMap lookups
+        const namespacedId = getNamespacedSeriesId(paneId, seriesId);
         // Track the request with direction in the key to support concurrent before/after requests
-        const requestKey = `${seriesId}_${paneId}_${direction}`;
+        const requestKey = `${namespacedId}_${direction}`;
         pendingHistoryRequests.add(requestKey);
 
         if (ws) {
@@ -290,9 +357,9 @@ const lazyLoadingState = props.lazyLoading
               direction,
             )
             .then((response) => {
-              mergeHistoryData(seriesId, response.data, direction);
+              mergeHistoryData(paneId, seriesId, response.data, direction);
               lazyLoadingState?.handleHistoryResponse(
-                seriesId,
+                namespacedId,
                 direction,
                 response.hasMoreBefore,
                 response.hasMoreAfter,
@@ -306,7 +373,7 @@ const lazyLoadingState = props.lazyLoading
                 err instanceof Error ? err : new Error(String(err)),
               );
               lazyLoadingState?.handleHistoryResponse(
-                seriesId,
+                namespacedId,
                 direction,
                 false,
                 false,
@@ -336,13 +403,20 @@ const errorMessage = computed(() => {
 
 const isEmptyState = computed(() => {
   // Empty if initialized but no series have data AND no more data to load
-  // Don't show "No data" during lazy loading when hasMoreBefore/After is true
+  // Don't show "No data" during initial load or lazy loading
   return (
     isInitialized.value &&
+    !isLoadingData.value && // Don't show empty state while loading
     seriesConfigs.value.every((s) => {
       const noData = !s.data?.length;
+      // If lazy loading is enabled but flags not set yet, assume data might exist
+      if (s.lazyLoading?.enabled && s.lazyLoading.hasMoreBefore === undefined) {
+        return false; // Don't consider empty during initial lazy-load setup
+      }
+      // Only consider truly empty if lazy loading explicitly says no more data
       const noMoreData =
-        !s.lazyLoading?.hasMoreBefore && !s.lazyLoading?.hasMoreAfter;
+        s.lazyLoading?.hasMoreBefore === false &&
+        s.lazyLoading?.hasMoreAfter === false;
       return noData && noMoreData;
     })
   );
@@ -425,8 +499,11 @@ function initializeChart(): void {
 function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
   if (!chart.value) return null;
 
-  const seriesId =
+  const paneId = config.paneId ?? 0;
+  const baseSeriesId =
     config.seriesId || config.name || `series_${seriesMap.value.size}`;
+  // Namespace series ID with pane to prevent cross-pane collisions
+  const seriesId = getNamespacedSeriesId(paneId, baseSeriesId);
 
   try {
     // Normalize data timestamps to ensure consistent time handling (ms/s/string → seconds)
@@ -437,7 +514,7 @@ function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
       type: config.seriesType,
       data: normalizedData,
       options: config.options || {},
-      paneId: config.paneId ?? 0,
+      paneId: paneId,
       priceLines: config.priceLines as any,
       markers: config.markers,
       seriesId: seriesId,
@@ -511,7 +588,9 @@ function createSeries(config: SeriesConfig): ExtendedSeriesApi | null {
 
     // Update config with normalized data for consistent time handling in lazy loading
     const configIndex = seriesConfigs.value.findIndex(
-      (c) => (c.seriesId || c.name) === seriesId,
+      (c) =>
+        (c.seriesId || c.name) === baseSeriesId &&
+        (c.paneId ?? 0) === paneId,
     );
     if (configIndex >= 0) {
       seriesConfigs.value[configIndex].data = normalizedData;
@@ -552,7 +631,8 @@ function removeSeries(seriesId: string): void {
  * - Uses `update()` for: monotonic appends (fast path O(m)), non-monotonic incremental updates (slow path O(n log n))
  *
  * **Parameters:**
- * @param seriesId - Globally unique series identifier (must be unique across all panes)
+ * @param paneId - Pane index
+ * @param baseSeriesId - Series identifier (not namespaced)
  * @param data - Data points to apply (will be normalized unless skipNormalization=true)
  * @param isInitialLoad - If true, uses setData() regardless of content
  * @param skipNormalization - If true, skips time normalization (data already normalized)
@@ -563,12 +643,14 @@ function removeSeries(seriesId: string): void {
  * - Initial load / replacement: O(n)
  */
 function updateSeriesData(
-  seriesId: string,
+  paneId: number,
+  baseSeriesId: string,
   data: DataPoint[],
   isInitialLoad = false,
   skipNormalization = false,
 ): void {
-  const series = seriesMap.value.get(seriesId);
+  const namespacedId = getNamespacedSeriesId(paneId, baseSeriesId);
+  const series = seriesMap.value.get(namespacedId);
   if (!series) return;
 
   // Normalize timestamps to seconds for consistent time handling (unless already normalized)
@@ -576,7 +658,8 @@ function updateSeriesData(
 
   // Find config
   const configIndex = seriesConfigs.value.findIndex(
-    (c) => (c.seriesId || c.name) === seriesId,
+    (c) =>
+      (c.seriesId || c.name) === baseSeriesId && (c.paneId ?? 0) === paneId,
   );
 
   if (
@@ -643,7 +726,7 @@ function updateSeriesData(
 
       if (import.meta.env.DEV) {
         console.log(
-          `[LightweightChart] Using setData() for series "${seriesId}" due to ${reason}`,
+          `[LightweightChart] Using setData() for series "${baseSeriesId}" (pane ${paneId}) due to ${reason}`,
         );
       }
     } else {
@@ -665,7 +748,7 @@ function updateSeriesData(
             isIncomingDataSorted = false;
             if (import.meta.env.DEV) {
               console.warn(
-                `[LightweightChart] Incoming data for series "${seriesId}" is not sorted. Falling back to slow path.`,
+                `[LightweightChart] Incoming data for series "${baseSeriesId}" (pane ${paneId}) is not sorted. Falling back to slow path.`,
               );
             }
             break;
@@ -800,10 +883,10 @@ function updateSeriesData(
     }
   }
 
-  emit("dataLoaded", seriesId, normalizedData.length);
+  emit("dataLoaded", baseSeriesId, normalizedData.length);
 
   // Sync lazy-loading bounds after data update (critical for live data)
-  lazyLoadingState?.syncBounds(seriesId);
+  lazyLoadingState?.syncBounds(namespacedId);
 
   // Only auto-fit on initial load, not on every update/merge
   if (props.autoFit && (isInitialLoad || !initialFitDone)) {
@@ -817,14 +900,18 @@ function updateSeriesData(
  * Uses shared time normalization to handle both strings and ms/s timestamps.
  */
 function mergeHistoryData(
-  seriesId: string,
+  paneId: number,
+  baseSeriesId: string,
   newData: DataPoint[],
   direction: "before" | "after",
 ): void {
   const configIndex = seriesConfigs.value.findIndex(
-    (c) => (c.seriesId || c.name) === seriesId,
+    (c) =>
+      (c.seriesId || c.name) === baseSeriesId && (c.paneId ?? 0) === paneId,
   );
   if (configIndex < 0) return;
+
+  const namespacedId = getNamespacedSeriesId(paneId, baseSeriesId);
 
   try {
     const config = seriesConfigs.value[configIndex];
@@ -847,7 +934,7 @@ function mergeHistoryData(
 
     // Don't trigger auto-fit on history merges (only on initial load)
     // Data is already normalized, so skip re-normalization (performance optimization)
-    updateSeriesData(seriesId, deduplicated, false, true);
+    updateSeriesData(paneId, baseSeriesId, deduplicated, false, true);
   } catch (err) {
     // Critical: catch normalization errors to prevent leaving chart in broken state
     const errorMessage =
@@ -856,15 +943,20 @@ function mergeHistoryData(
     emit(
       "error",
       new Error(
-        `History merge failed for series "${seriesId}": ${errorMessage}`,
+        `History merge failed for series "${baseSeriesId}" (pane ${paneId}): ${errorMessage}`,
       ),
     );
 
     // Clear pending lazy-load flags to prevent infinite loading state
-    lazyLoadingState?.handleHistoryResponse(seriesId, direction, false, false);
+    lazyLoadingState?.handleHistoryResponse(
+      namespacedId,
+      direction,
+      false,
+      false,
+    );
 
     console.error(
-      `[LightweightChart] History merge error for series "${seriesId}":`,
+      `[LightweightChart] History merge error for series "${baseSeriesId}" (pane ${paneId}):`,
       err,
     );
   }
@@ -879,12 +971,13 @@ async function refreshSeriesData(
 ): Promise<void> {
   try {
     const response = await api.getSeriesData(props.chartId, paneId, seriesId);
-    updateSeriesData(seriesId, response.data);
+    updateSeriesData(paneId, seriesId, response.data);
 
     // Update lazy loading state if chunked
     if (response.chunked && lazyLoadingState) {
       const configIndex = seriesConfigs.value.findIndex(
-        (c) => (c.seriesId || c.name) === seriesId,
+        (c) =>
+          (c.seriesId || c.name) === seriesId && (c.paneId ?? 0) === paneId,
       );
       if (configIndex >= 0) {
         seriesConfigs.value[configIndex].lazyLoading = {
@@ -1130,15 +1223,18 @@ watch(
       if ((lengthChanged || lastTimeChanged) && seriesId) {
         const config = props.series[index];
         if (config?.data) {
+          const paneId = config.paneId ?? 0;
           // Update internal config
           const configIndex = seriesConfigs.value.findIndex(
-            (c) => (c.seriesId || c.name) === seriesId,
+            (c) =>
+              (c.seriesId || c.name) === seriesId &&
+              (c.paneId ?? 0) === paneId,
           );
           if (configIndex >= 0) {
             seriesConfigs.value[configIndex].data = [...config.data];
           }
           // Update the series on the chart
-          updateSeriesData(seriesId, config.data);
+          updateSeriesData(paneId, seriesId, config.data);
 
           // Warn about in-place mutation (best practice is immutable updates)
           if (import.meta.env.DEV) {
@@ -1396,7 +1492,10 @@ defineExpose({
       v-if="showErrorIndicator && errorMessage"
       class="chart-indicator chart-error"
     >
-      <slot name="error" :error="errorMessage">
+      <slot
+        name="error"
+        :error="errorMessage"
+      >
         <div class="chart-indicator-content">
           <span class="error-icon">⚠️</span>
           <span class="error-text">{{ errorMessage }}</span>

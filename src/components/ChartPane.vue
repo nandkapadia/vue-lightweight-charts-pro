@@ -12,6 +12,7 @@ import {
   computed,
   watch,
   onUnmounted,
+  onMounted,
   type PropType,
   type ShallowRef,
 } from "vue";
@@ -21,7 +22,7 @@ import {
   type ISeriesApi,
   type SeriesType,
 } from "lightweight-charts";
-import type { SeriesConfig, DataPoint } from "../types";
+import type { SeriesConfig, DataPoint, Annotation } from "../types";
 import {
   createSeriesWithConfig,
   type ExtendedSeriesApi,
@@ -63,6 +64,11 @@ const props = defineProps({
     type: String,
     default: "",
   },
+  /** Pane-level or chart-level annotations to apply to all series in this pane */
+  annotations: {
+    type: Array as PropType<Annotation[]>,
+    default: () => [],
+  },
 });
 
 // Define emits
@@ -85,7 +91,63 @@ const localSeriesMap = ref<Map<string, ExtendedSeriesApi>>(new Map());
 const isCollapsed = ref(props.collapsed);
 const previousSeriesConfigs = ref<SeriesConfig[]>([]); // Track previous configs for smart updates
 let seriesIdCounter = 0; // Counter for generating unique series IDs
-const chartLevelAnnotationMarkers: any[] = []; // Chart-level annotations for this pane
+let chartLevelAnnotationMarkers: any[] = []; // Chart-level annotations for this pane
+
+// Process pane-level annotations
+function processAnnotations() {
+  chartLevelAnnotationMarkers = [];
+
+  if (props.annotations?.length) {
+    try {
+      const annotationVisuals = createAnnotationVisualElements(
+        props.annotations as any,
+      );
+
+      if (annotationVisuals.markers?.length) {
+        chartLevelAnnotationMarkers = annotationVisuals.markers;
+        logger.info(
+          `Pane ${props.paneId} annotations processed: ${annotationVisuals.markers.length} markers`,
+          "ChartPane",
+        );
+      }
+
+      // Log other annotation types (not yet fully supported)
+      if (annotationVisuals.shapes?.length) {
+        logger.info(
+          `Annotation shapes available for pane ${props.paneId}: ${annotationVisuals.shapes.length}`,
+          "ChartPane",
+        );
+      }
+      if (annotationVisuals.texts?.length) {
+        logger.info(
+          `Text annotations available for pane ${props.paneId}: ${annotationVisuals.texts.length}`,
+          "ChartPane",
+        );
+      }
+    } catch (err) {
+      logger.error(
+        `Failed to process annotations for pane ${props.paneId}`,
+        "ChartPane",
+        err,
+      );
+    }
+  }
+}
+
+// Process annotations on mount and when they change
+onMounted(() => {
+  processAnnotations();
+});
+
+watch(
+  () => props.annotations,
+  () => {
+    processAnnotations();
+    // Re-initialize series to apply new annotations
+    initializeSeries();
+  },
+  { deep: true },
+);
 
 const computedHeight = computed(() => {
   if (typeof props.height === "number") {
@@ -456,11 +518,61 @@ watch(
   { immediate: true },
 );
 
-// Watch for series prop changes
+// Watch for series array identity changes (shallow watch)
+// This avoids re-creating all series when nested data changes
 watch(
   () => props.series,
-  () => {
-    initializeSeries();
+  (newSeries, oldSeries) => {
+    // Only re-initialize if the array reference changed (series added/removed)
+    if (newSeries !== oldSeries) {
+      previousSeriesConfigs.value = [...newSeries];
+      initializeSeries();
+    }
+  },
+);
+
+// Watch for in-place data mutations (for series data updates)
+// This handles cases where data is mutated without changing the array reference
+watch(
+  () =>
+    props.series.map((s) => ({
+      id: s.seriesId || s.name,
+      paneId: s.paneId,
+      dataLength: s.data?.length || 0,
+      lastTime: s.data?.length ? s.data[s.data.length - 1]?.time : null,
+    })),
+  (newMetadata, oldMetadata) => {
+    // Detect in-place mutations by comparing data length and last time
+    newMetadata.forEach((newMeta, index) => {
+      const oldMeta = oldMetadata?.[index];
+      if (!oldMeta) return;
+
+      const lengthChanged = newMeta.dataLength !== oldMeta.dataLength;
+      const lastTimeChanged = newMeta.lastTime !== oldMeta.lastTime;
+
+      // If data changed, update the specific series instead of re-initializing all
+      if (lengthChanged || lastTimeChanged) {
+        const config = props.series[index];
+        const seriesId =
+          config.seriesId ||
+          config.name ||
+          `pane${props.paneId}_series_${index}`;
+        const series = localSeriesMap.value.get(seriesId);
+
+        if (series && config?.data) {
+          // Update the specific series with new data
+          const normalizedData = normalizeDataPoints(config.data);
+          series.setData(normalizedData as any);
+
+          if (import.meta.env.DEV) {
+            console.warn(
+              `[ChartPane] In-place mutation detected for series "${seriesId}". ` +
+                `For better performance, replace the series array instead.`,
+            );
+          }
+        }
+      }
+    });
   },
   { deep: true },
 );
@@ -508,7 +620,10 @@ defineExpose({
     :class="{ collapsed: isCollapsed }"
     :style="{ height: computedHeight }"
   >
-    <div v-if="title" class="pane-header">
+    <div
+      v-if="title"
+      class="pane-header"
+    >
       <span class="pane-title">{{ title }}</span>
       <button
         v-if="!isCollapsed"
@@ -527,7 +642,10 @@ defineExpose({
         +
       </button>
     </div>
-    <div v-if="!isCollapsed" class="pane-content">
+    <div
+      v-if="!isCollapsed"
+      class="pane-content"
+    >
       <slot />
     </div>
   </div>

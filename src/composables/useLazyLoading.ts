@@ -544,13 +544,19 @@ export function useLazyLoading(
     { immediate: true },
   );
 
-  // Watch for series config changes
+  // Watch for series config changes (shallow - only array mutations)
+  // Deep watching would trigger on every data append (O(n) per tick)
+  // Use syncBounds() for explicit updates after data changes
   watch(
-    seriesConfigs,
+    () => seriesConfigs.value.map((c) => ({
+      id: c.seriesId || c.name,
+      paneId: c.paneId,
+      lazyLoading: c.lazyLoading, // Shallow reference
+    })),
     () => {
       initializeStates();
     },
-    { deep: true },
+    { deep: true }, // Deep on metadata only, not on data arrays
   );
 
   // Initialize on creation

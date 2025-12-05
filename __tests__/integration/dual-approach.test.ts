@@ -361,7 +361,8 @@ describe('Dual-Approach Integration (Config + Components)', () => {
 
       await nextTick();
       const seriesMap = (wrapper.vm as any).seriesMap;
-      expect(seriesMap.has('price')).toBe(true);
+      // Series IDs are now namespaced by pane to prevent collisions
+      expect(seriesMap.has('pane0-price')).toBe(true);
       expect(wrapper.exists()).toBe(true);
     });
   });

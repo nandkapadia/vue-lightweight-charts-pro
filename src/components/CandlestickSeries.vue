@@ -1,5 +1,8 @@
 <template>
-  <Series type="candlestick" v-bind="seriesProps">
+  <Series
+    type="candlestick"
+    v-bind="seriesProps"
+  >
     <slot />
   </Series>
 </template>
