@@ -1,11 +1,16 @@
 {
   "name": "@lightweight-charts-pro/vue3",
   "version": "0.1.0",
-  "description": "Vue 3 components for TradingView Lightweight Charts with backend API integration",
+  "description": "Vue 3 components for TradingView Lightweight Charts with backend API integration, lazy loading, WebSocket support, and custom series types",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "author": "Nand Kapadia",
+  "homepage": "https://github.com/nandkapadia/vue-lightweight-charts-pro#readme",
+  "bugs": {
+    "url": "https://github.com/nandkapadia/vue-lightweight-charts-pro/issues"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -70,7 +75,7 @@
     "vue-tsc": "^2.2.0"
   },
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && npm run build:types",
     "build:types": "vue-tsc --emitDeclarationOnly",
     "dev": "vite build --watch",
     "test": "vitest run",
@@ -79,6 +84,11 @@
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "type-check": "vue-tsc --noEmit",
     "lint": "eslint src --ext .ts,.vue",
-    "format": "prettier --write \"src/**/*.{ts,vue}\""
+    "format": "prettier --write \"src/**/*.{ts,vue}\"",
+    "prepublishOnly": "npm run lint && npm run type-check && npm run test && npm run build"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
   }
 }

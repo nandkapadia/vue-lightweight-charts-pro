@@ -1,0 +1,47 @@
+# Source files (only ship dist/)
+src/
+__tests__/
+examples/
+
+# Development files
+.github/
+.claude/
+*.config.js
+*.config.ts
+.eslintrc*
+.prettierrc*
+tsconfig*.json
+vite.config.ts
+vitest*.config.ts
+
+# Documentation (keep only essentials)
+CODE_REVIEW.md
+CORRECTED_INTEGRATION_PLAN.md
+PRODUCTION_READINESS_REPORT.md
+STREAMLIT_VUE_COMPARISON.md
+TEST_REPORT.md
+VUE_FEATURE_GAPS.md
+VUE_LIGHTWEIGHT_CHARTS_PRO_BUGFIXES.md
+
+# Build artifacts
+node_modules/
+coverage/
+.vite/
+*.log
+*.tsbuildinfo
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git files
+.git/
+.gitignore
+.gitattributes
