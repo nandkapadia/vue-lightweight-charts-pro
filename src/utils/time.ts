@@ -55,15 +55,12 @@ export function normalizeTime(time: number | string | Time): number {
   }
 
   if (typeof time === 'string') {
-    // Parse string date as UTC to avoid local timezone shifts
-    // If no timezone info present (no Z, +, or -), append Z to force UTC
-    let utcString = time;
-    if (!time.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(time)) {
-      // No explicit timezone - treat as UTC by appending Z
-      utcString = time + 'Z';
-    }
-
-    const parsed = Math.floor(Date.parse(utcString) / 1000);
+    // Parse string date using Date.parse() which interprets strings without
+    // timezone info as local timezone. This is intentional to allow users
+    // to provide dates in their local timezone when needed.
+    // For UTC timestamps, use ISO format with 'Z' suffix (e.g., '2024-01-01T00:00:00Z')
+    // or pass numeric epoch seconds instead.
+    const parsed = Math.floor(Date.parse(time) / 1000);
 
     if (isNaN(parsed)) {
       throw new Error(`Unparsable time string: "${time}"`);
