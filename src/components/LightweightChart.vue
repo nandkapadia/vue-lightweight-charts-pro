@@ -467,12 +467,12 @@ function removeSeries(seriesId: string): void {
  * Uses series.update() for incremental changes to avoid O(n) re-sorting on every chunk.
  * Only uses series.setData() for initial load or full replacement.
  */
-function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = false): void {
+function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = false, skipNormalization = false): void {
   const series = seriesMap.value.get(seriesId);
   if (!series) return;
 
-  // Normalize timestamps to seconds for consistent time handling
-  const normalizedData = normalizeDataPoints(data);
+  // Normalize timestamps to seconds for consistent time handling (unless already normalized)
+  const normalizedData = skipNormalization ? data : normalizeDataPoints(data);
 
   // Find config
   const configIndex = seriesConfigs.value.findIndex(
@@ -663,7 +663,8 @@ function mergeHistoryData(
   deduplicated.sort((a, b) => a.time - b.time);
 
   // Don't trigger auto-fit on history merges (only on initial load)
-  updateSeriesData(seriesId, deduplicated, false);
+  // Data is already normalized, so skip re-normalization (performance optimization)
+  updateSeriesData(seriesId, deduplicated, false, true);
 }
 
 /**
