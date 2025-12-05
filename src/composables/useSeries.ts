@@ -9,7 +9,7 @@ import { ref, inject, onMounted, onUnmounted, watch, provide, type Ref } from 'v
 import type { IChartApi } from 'lightweight-charts';
 import { createSeriesWithConfig, type ExtendedSeriesApi, type ExtendedSeriesConfig, logger } from '@lightweight-charts-pro/core';
 import type { DataPoint } from '../types';
-import { normalizeDataPoints } from '../utils/time';
+import { normalizeDataPoints, normalizeTime } from '../utils/time';
 
 export interface UseSeriesOptions {
   type: string;
@@ -94,20 +94,117 @@ export function useSeries(props: UseSeriesOptions) {
   }
 
   /**
-   * Update series data with incremental updates.
-   * Uses series.update() for new bars instead of setData() to avoid full re-sort.
+   * Update series data with incremental updates or full replacement.
+   *
+   * Uses series.update() for incremental updates (real-time ticks, new bars)
+   * Uses series.setData() for replacements (symbol change, timeframe change, dataset shrink)
+   *
    * Normalizes timestamps to prevent ms/s misalignment.
+   *
+   * **Replacement Detection:**
+   * - Dataset shrink (new length < 50% of previous)
+   * - Non-overlapping time windows (symbol/instrument change)
+   * - First timestamp moving backward (history prepend/backfill)
+   *
+   * **Incremental Update:**
+   * - Monotonic append (new bars after existing)
+   * - Last bar update (real-time tick)
+   * - Small backfills (< 50% dataset size)
    */
   function updateData(newData: DataPoint[]) {
     if (!series.value || !newData) return;
 
     try {
-      // Normalize data to ensure consistent time format
-      const normalizedData = normalizeDataPoints(newData);
+      // OPTIMIZATION: Quick detection for replacement scenarios before normalization
+      // This allows us to skip the cached normalization path for full replacements
+      let needsFullNormalization = false;
 
-      // Check if this is initial load or empty data
-      if (!previousData.value.length || normalizedData.length === 0) {
-        // Initial load or empty data: use setData()
+      if (previousData.value.length > 0 && newData.length > 0) {
+        // Quick size check (no normalization needed yet)
+        const isShrink = newData.length < previousData.value.length * 0.5;
+
+        // Quick time range check (normalize only first/last times for comparison)
+        const existingFirstTime = previousData.value[0].time;
+        const existingLastTime = previousData.value[previousData.value.length - 1].time;
+
+        // Normalize only the boundary times for quick checks
+        const newFirstTime = normalizeTime(newData[0].time);
+        const newLastTime = normalizeTime(newData[newData.length - 1].time);
+
+        const isNonOverlapping = newLastTime < existingFirstTime || newFirstTime > existingLastTime;
+
+        if (isShrink || isNonOverlapping) {
+          needsFullNormalization = true;
+          logger.info(
+            `Dataset replacement detected (shrink: ${isShrink}, non-overlapping: ${isNonOverlapping}). Full normalization.`,
+            'useSeries'
+          );
+        }
+      }
+
+      // Normalize data based on scenario
+      let normalizedData: Array<DataPoint & { time: number }>;
+
+      if (!previousData.value.length || newData.length === 0 || needsFullNormalization) {
+        // Initial load, empty data, or replacement: normalize entire dataset
+        normalizedData = normalizeDataPoints(newData);
+
+        if (!previousData.value.length || normalizedData.length === 0 || needsFullNormalization) {
+          // Use setData() for these cases
+          series.value.setData(normalizedData as any);
+          previousData.value = normalizedData;
+          return;
+        }
+      } else {
+        // CACHED NORMALIZATION: Only normalize new/changed bars
+        // Build a map of time → normalized bar from previousData
+        const normalizedCache = new Map<number | string, DataPoint & { time: number }>();
+        previousData.value.forEach((bar) => {
+          normalizedCache.set(bar.time, bar);
+        });
+
+        // Process incoming data: reuse cached normalized bars, only normalize new/changed ones
+        normalizedData = newData.map((bar) => {
+          const rawTime = bar.time;
+          const normalizedTime = normalizeTime(rawTime);
+
+          // Check if we have a cached normalized version with the same raw time
+          const cached = normalizedCache.get(normalizedTime);
+
+          // For bars we've seen before, reuse the cached normalized version
+          // (this assumes bars don't change once normalized, which is true for historical data)
+          if (cached) {
+            return cached;
+          }
+
+          // New bar: normalize it
+          return normalizeDataPoints([bar])[0];
+        });
+      }
+
+      // DETECTION: Check if this is a dataset replacement vs. incremental update
+      const existingLength = previousData.value.length;
+      const newLength = normalizedData.length;
+      const existingFirstTime = previousData.value[0].time;
+      const existingLastTime = previousData.value[existingLength - 1].time;
+      const newFirstTime = normalizedData[0].time;
+      const newLastTime = normalizedData[newLength - 1].time;
+
+      // 1. Dataset shrink: new dataset is < 50% of previous size
+      const isShrink = newLength < existingLength * 0.5;
+
+      // 2. Non-overlapping time windows: symbol/instrument change
+      const isNonOverlapping = newLastTime < existingFirstTime || newFirstTime > existingLastTime;
+
+      // 3. First timestamp moving backward: history prepend/backfill
+      const isBackfill = newFirstTime < existingFirstTime;
+
+      // If any replacement condition is met, use setData() to clear old bars
+      if (isShrink || isNonOverlapping) {
+        logger.info(
+          `Dataset replacement detected (shrink: ${isShrink}, non-overlapping: ${isNonOverlapping}). Using setData()`,
+          'useSeries'
+        );
         series.value.setData(normalizedData as any);
         previousData.value = normalizedData;
         return;
