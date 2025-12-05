@@ -4,6 +4,103 @@
 
 import { vi } from 'vitest';
 
+// Mock @lightweight-charts-pro/core
+vi.mock('@lightweight-charts-pro/core', () => {
+  // Create a mock series with all common methods
+  const createMockExtendedSeries = () => ({
+    setData: vi.fn(),
+    update: vi.fn(),
+    applyOptions: vi.fn(),
+    setMarkers: vi.fn(),
+    markers: vi.fn(() => []),
+    data: vi.fn(() => []),
+    createPriceLine: vi.fn(() => ({
+      options: vi.fn(),
+      applyOptions: vi.fn(),
+    })),
+    removePriceLine: vi.fn(),
+    priceScale: vi.fn(() => ({
+      applyOptions: vi.fn(),
+      options: vi.fn(),
+    })),
+  });
+
+  // Mock logger
+  const logger = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  };
+
+  // Mock TimeRange enum
+  const TimeRange = {
+    ONE_DAY: '1D',
+    ONE_WEEK: '1W',
+    ONE_MONTH: '1M',
+    THREE_MONTHS: '3M',
+    SIX_MONTHS: '6M',
+    ONE_YEAR: '1Y',
+    ALL: 'ALL',
+  };
+
+  // Mock LegendPrimitive class
+  class MockLegendPrimitive {
+    id: string;
+    config: Record<string, unknown>;
+    constructor(id: string, config: Record<string, unknown>) {
+      this.id = id;
+      this.config = config;
+    }
+    updateData = vi.fn();
+    destroy = vi.fn();
+  }
+
+  // Mock RangeSwitcherPrimitive class
+  class MockRangeSwitcherPrimitive {
+    id: string;
+    config: Record<string, unknown>;
+    constructor(id: string, config: Record<string, unknown>) {
+      this.id = id;
+      this.config = config;
+    }
+    setActiveRange = vi.fn();
+    destroy = vi.fn();
+  }
+
+  return {
+    // Series creation
+    createSeriesWithConfig: vi.fn(() => createMockExtendedSeries()),
+    
+    // Types (re-exported as empty)
+    ExtendedSeriesApi: {},
+    ExtendedSeriesConfig: {},
+    
+    // Annotation system
+    createAnnotationVisualElements: vi.fn(() => ({
+      markers: [],
+      shapes: [],
+      texts: [],
+    })),
+    
+    // Primitives
+    LegendPrimitive: MockLegendPrimitive,
+    RangeSwitcherPrimitive: MockRangeSwitcherPrimitive,
+    TimeRange,
+    
+    // Types
+    RangeConfig: {},
+    BandSeriesOptions: {},
+    RibbonSeriesOptions: {},
+    SignalSeriesOptions: {},
+    TrendFillSeriesOptions: {},
+    GradientRibbonSeriesOptions: {},
+    
+    // Utilities
+    logger,
+  };
+});
+
 // Mock lightweight-charts
 vi.mock('lightweight-charts', () => {
   // Create a mock series with all common methods

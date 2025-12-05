@@ -48,7 +48,7 @@
     "vue": "^3.4.0"
   },
   "dependencies": {
-    "@lightweight-charts-pro/core": "file:../lightweight-charts-pro-frontend"
+    "@lightweight-charts-pro/core": "github:nandkapadia/lightweight-charts-pro-frontend"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
