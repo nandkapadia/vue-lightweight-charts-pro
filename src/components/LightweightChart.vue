@@ -290,8 +290,13 @@ const errorMessage = computed(() => {
 });
 
 const isEmptyState = computed(() => {
-  // Empty if initialized but no series have data
-  return isInitialized.value && seriesConfigs.value.every((s) => !s.data?.length);
+  // Empty if initialized but no series have data AND no more data to load
+  // Don't show "No data" during lazy loading when hasMoreBefore/After is true
+  return isInitialized.value && seriesConfigs.value.every((s) => {
+    const noData = !s.data?.length;
+    const noMoreData = !s.lazyLoading?.hasMoreBefore && !s.lazyLoading?.hasMoreAfter;
+    return noData && noMoreData;
+  });
 });
 
 /**
@@ -464,8 +469,21 @@ function removeSeries(seriesId: string): void {
 
 /**
  * Update series data with time normalization and incremental updates.
- * Uses series.update() for incremental changes to avoid O(n) re-sorting on every chunk.
- * Only uses series.setData() for initial load or full replacement.
+ *
+ * **Mutation Contracts:**
+ * - Uses `setData()` for: initial load, history prepends (backfill), dataset shrink, time range changes
+ * - Uses `update()` for: monotonic appends (fast path O(m)), non-monotonic incremental updates (slow path O(n log n))
+ *
+ * **Parameters:**
+ * @param seriesId - Globally unique series identifier (must be unique across all panes)
+ * @param data - Data points to apply (will be normalized unless skipNormalization=true)
+ * @param isInitialLoad - If true, uses setData() regardless of content
+ * @param skipNormalization - If true, skips time normalization (data already normalized)
+ *
+ * **Performance:**
+ * - Monotonic append: O(m) where m = new bars
+ * - Non-monotonic: O(n log n) where n = total bars
+ * - Initial load / replacement: O(n)
  */
 function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = false, skipNormalization = false): void {
   const series = seriesMap.value.get(seriesId);

@@ -85,18 +85,33 @@ export function normalizeTime(time: number | string | Time): number {
 }
 
 /**
- * Normalize an array of data points with time normalization.
+ * Normalize an array of data points with time normalization and validation.
  *
  * @param data - Array of data points
  * @returns Array with normalized timestamps
+ * @throws Error if data contains NaN or undefined values
  */
 export function normalizeDataPoints<T extends { time: number | string }>(
   data: T[]
 ): Array<T & { time: number }> {
-  return data.map((point) => ({
-    ...point,
-    time: normalizeTime(point.time),
-  }));
+  return data.map((point, index) => {
+    // Validate for NaN/undefined in critical fields
+    if (point.time === undefined || point.time === null) {
+      throw new Error(`Data point at index ${index} has undefined/null time`);
+    }
+
+    // Check for NaN in numeric fields (value, open, high, low, close, etc.)
+    Object.entries(point).forEach(([key, value]) => {
+      if (typeof value === 'number' && isNaN(value)) {
+        throw new Error(`Data point at index ${index} has NaN in field "${key}"`);
+      }
+    });
+
+    return {
+      ...point,
+      time: normalizeTime(point.time),
+    };
+  });
 }
 
 /**
