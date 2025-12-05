@@ -925,6 +925,11 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  // Disconnect WebSocket to prevent resource leaks
+  if (ws) {
+    ws.disconnect();
+  }
+
   // Disconnect resize observer
   if (resizeObserver) {
     resizeObserver.disconnect();
