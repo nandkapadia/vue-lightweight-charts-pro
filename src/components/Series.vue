@@ -28,6 +28,16 @@
 
 import { useSeries } from "../composables/useSeries";
 import type { DataPoint } from "../types";
+import type {
+  TradeConfig,
+  TradeVisualizationOptions,
+  Annotation,
+} from "@lightweight-charts-pro/core";
+import type {
+  CreatePriceLineOptions,
+  SeriesMarker,
+  Time,
+} from "lightweight-charts";
 
 interface Props {
   /** Series type (e.g., 'line', 'candlestick', 'band', etc.) */
@@ -41,15 +51,15 @@ interface Props {
   /** Series options (flexible for all series types) */
   options?: Record<string, unknown>;
   /** Price lines configuration */
-  priceLines?: any[];
+  priceLines?: CreatePriceLineOptions[];
   /** Markers configuration */
-  markers?: any[];
+  markers?: SeriesMarker<Time>[];
   /** Trades configuration */
-  trades?: any[];
+  trades?: TradeConfig[];
   /** Trade visualization options */
-  tradeVisualizationOptions?: any;
+  tradeVisualizationOptions?: TradeVisualizationOptions;
   /** Annotations configuration */
-  annotations?: any[];
+  annotations?: Annotation[];
 }
 
 const props = defineProps<Props>();

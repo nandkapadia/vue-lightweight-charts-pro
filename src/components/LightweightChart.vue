@@ -14,6 +14,7 @@ import {
   watch,
   onMounted,
   onUnmounted,
+  onErrorCaptured,
   provide,
   type PropType,
 } from "vue";
@@ -194,9 +195,9 @@ const isInitialized = ref(false);
 const error = ref<string | null>(null);
 
 // Track pending history requests to preserve direction
-// Key: `${seriesId}_${paneId}_${direction}`, Value: true (presence indicates pending)
-// Direction is now part of the key to handle concurrent before/after requests
-const pendingHistoryRequests = new Set<string>();
+// Key: `${namespacedId}_${direction}`, Value: direction ('before' | 'after')
+// This prevents race conditions when server doesn't include direction in response
+const pendingHistoryRequests = new Map<string, "before" | "after">();
 
 // Primitives (legends and range switchers) created from config
 const legendPrimitives: LegendPrimitive[] = [];
@@ -277,14 +278,30 @@ const ws = props.wsUrl
           );
         },
         onHistoryResponse: (response) => {
-          // Extract direction from response (should be provided by WebSocket message)
-          // Fallback to 'before' if not specified (backward compatibility)
-          const direction = response.direction || RequestDirection.Before;
           const paneId = response.paneId || 0;
           // Namespace series ID to match seriesMap keys
           const namespacedId = getNamespacedSeriesId(paneId, response.seriesId);
-          const requestKey = `${namespacedId}_${direction}`;
-          pendingHistoryRequests.delete(requestKey);
+
+          // Look up direction from pending requests to avoid race condition
+          // Server may not include direction in response, so we use our stored value
+          let direction: "before" | "after" = RequestDirection.Before;
+
+          // Try both possible request keys to find which one is pending
+          const beforeKey = `${namespacedId}_before`;
+          const afterKey = `${namespacedId}_after`;
+
+          if (pendingHistoryRequests.has(beforeKey)) {
+            const storedDirection = pendingHistoryRequests.get(beforeKey);
+            if (storedDirection) direction = storedDirection;
+            pendingHistoryRequests.delete(beforeKey);
+          } else if (pendingHistoryRequests.has(afterKey)) {
+            const storedDirection = pendingHistoryRequests.get(afterKey);
+            if (storedDirection) direction = storedDirection;
+            pendingHistoryRequests.delete(afterKey);
+          } else if (response.direction) {
+            // Fallback to response direction if no pending request found
+            direction = response.direction;
+          }
 
           // Check for server-side errors in history response
           if (response.error) {
@@ -344,9 +361,9 @@ const lazyLoadingState = props.lazyLoading
       onRequestHistory: (seriesId, paneId, beforeTime, direction, count) => {
         // Namespace series ID for seriesMap lookups
         const namespacedId = getNamespacedSeriesId(paneId, seriesId);
-        // Track the request with direction in the key to support concurrent before/after requests
+        // Store the request direction to resolve race conditions in responses
         const requestKey = `${namespacedId}_${direction}`;
-        pendingHistoryRequests.add(requestKey);
+        pendingHistoryRequests.set(requestKey, direction);
 
         if (ws) {
           ws.requestHistory(paneId, seriesId, beforeTime, count, direction);
@@ -396,6 +413,28 @@ const lazyLoadingState = props.lazyLoading
 // Provide chart instance to child components
 provide("chart", chart);
 provide("seriesMap", seriesMap);
+
+// Error boundary: Catch errors from child components (Series, Markers, PriceLines, etc.)
+onErrorCaptured((err, instance, info) => {
+  // Log the error with context
+  logger.error(
+    `Component error in ${instance?.$options?.name || "child component"}`,
+    "LightweightChart",
+    err,
+  );
+  logger.info(`Error info: ${info}`, "LightweightChart");
+
+  // Set error state for display
+  const errorMsg = `Component error: ${err.message || String(err)}`;
+  error.value = errorMsg;
+
+  // Emit error event for parent components
+  emit("error", err instanceof Error ? err : new Error(errorMsg));
+
+  // Prevent error from propagating further up the component tree
+  // This allows the chart to continue functioning even if a child component fails
+  return false;
+});
 
 // Computed states for UI indicators
 const isLoadingData = computed(() => {
@@ -1204,54 +1243,51 @@ watch(
   },
 );
 
-// Watch for in-place data mutations (deep watch for nested data changes)
-// Detects when data is pushed/mutated without changing array reference
+// Watch for in-place data mutations
+// PERFORMANCE: Use string arrays instead of objects to reduce allocation overhead
+// With 50+ series, creating objects per tick is expensive
 watch(
   () =>
-    props.series.map((s) => ({
-      id: s.seriesId || s.name,
-      dataLength: s.data?.length || 0,
-      lastTime: s.data?.length ? s.data[s.data.length - 1]?.time : null,
-    })),
-  (newMetadata, oldMetadata) => {
-    // Detect in-place mutations by comparing data length and last time
-    newMetadata.forEach((newMeta, index) => {
-      const oldMeta = oldMetadata?.[index];
-      if (!oldMeta) return;
+    props.series.map(
+      (s) =>
+        `${s.seriesId || s.name}:${s.paneId ?? 0}:${s.data?.length || 0}:${s.data?.length ? s.data[s.data.length - 1]?.time : ""}`,
+    ),
+  (newMeta, oldMeta) => {
+    // Detect in-place mutations by comparing string fingerprints
+    newMeta.forEach((newFingerprint, index) => {
+      const oldFingerprint = oldMeta?.[index];
+      if (!oldFingerprint || newFingerprint === oldFingerprint) return;
 
-      const seriesId = newMeta.id;
-      const lengthChanged = newMeta.dataLength !== oldMeta.dataLength;
-      const lastTimeChanged = newMeta.lastTime !== oldMeta.lastTime;
+      const config = props.series[index];
+      if (config?.data) {
+        const seriesId = config.seriesId || config.name;
+        if (!seriesId) return; // Skip if no series ID
 
-      // If data length or last time changed, update the series
-      if ((lengthChanged || lastTimeChanged) && seriesId) {
-        const config = props.series[index];
-        if (config?.data) {
-          const paneId = config.paneId ?? 0;
-          // Update internal config
-          const configIndex = seriesConfigs.value.findIndex(
-            (c) =>
-              (c.seriesId || c.name) === seriesId && (c.paneId ?? 0) === paneId,
+        const paneId = config.paneId ?? 0;
+
+        // Update internal config
+        const configIndex = seriesConfigs.value.findIndex(
+          (c) =>
+            (c.seriesId || c.name) === seriesId && (c.paneId ?? 0) === paneId,
+        );
+        if (configIndex >= 0) {
+          seriesConfigs.value[configIndex].data = [...config.data];
+        }
+
+        // Update the series on the chart
+        updateSeriesData(paneId, seriesId, config.data);
+
+        // Warn about in-place mutation (best practice is immutable updates)
+        if (import.meta.env.DEV) {
+          console.warn(
+            `[LightweightChart] In-place mutation detected for series "${seriesId}". ` +
+              `For better performance, replace the data array instead: ` +
+              `series[i].data = [...newData]`,
           );
-          if (configIndex >= 0) {
-            seriesConfigs.value[configIndex].data = [...config.data];
-          }
-          // Update the series on the chart
-          updateSeriesData(paneId, seriesId, config.data);
-
-          // Warn about in-place mutation (best practice is immutable updates)
-          if (import.meta.env.DEV) {
-            console.warn(
-              `[LightweightChart] In-place mutation detected for series "${seriesId}". ` +
-                `For better performance, replace the data array instead: ` +
-                `series[i].data = [...newData]`,
-            );
-          }
         }
       }
     });
   },
-  { deep: true },
 );
 
 // Watch for legends changes (config-driven like Streamlit)
@@ -1412,6 +1448,9 @@ onMounted(() => {
   }
 
   // Set up resize observer
+  // Note: Using a single ResizeObserver per chart for optimal performance.
+  // Child components (ChartPane, Series, etc.) don't create their own observers.
+  // This prevents observer proliferation when using multiple panes.
   if (containerRef.value) {
     resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(containerRef.value);
@@ -1495,7 +1534,10 @@ defineExpose({
       v-if="showErrorIndicator && errorMessage"
       class="chart-indicator chart-error"
     >
-      <slot name="error" :error="errorMessage">
+      <slot
+        name="error"
+        :error="errorMessage"
+      >
         <div class="chart-indicator-content">
           <span class="error-icon">⚠️</span>
           <span class="error-text">{{ errorMessage }}</span>

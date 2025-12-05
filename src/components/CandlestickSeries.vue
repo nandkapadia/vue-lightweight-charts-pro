@@ -1,5 +1,8 @@
 <template>
-  <Series type="candlestick" v-bind="seriesProps">
+  <Series
+    type="candlestick"
+    v-bind="seriesProps"
+  >
     <slot />
   </Series>
 </template>
@@ -21,6 +24,16 @@
 
 import Series from "./Series.vue";
 import type { DataPoint } from "../types";
+import type {
+  TradeConfig,
+  TradeVisualizationOptions,
+  Annotation,
+} from "@lightweight-charts-pro/core";
+import type {
+  CreatePriceLineOptions,
+  SeriesMarker,
+  Time,
+} from "lightweight-charts";
 import { computed } from "vue";
 
 interface Props {
@@ -38,11 +51,11 @@ interface Props {
   borderDownColor?: string;
   wickVisible?: boolean;
   // General options
-  priceLines?: any[];
-  markers?: any[];
-  trades?: any[];
-  tradeVisualizationOptions?: any;
-  annotations?: any[];
+  priceLines?: CreatePriceLineOptions[];
+  markers?: SeriesMarker<Time>[];
+  trades?: TradeConfig[];
+  tradeVisualizationOptions?: TradeVisualizationOptions;
+  annotations?: Annotation[];
 }
 
 const props = defineProps<Props>();

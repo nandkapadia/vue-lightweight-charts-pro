@@ -620,7 +620,10 @@ defineExpose({
     :class="{ collapsed: isCollapsed }"
     :style="{ height: computedHeight }"
   >
-    <div v-if="title" class="pane-header">
+    <div
+      v-if="title"
+      class="pane-header"
+    >
       <span class="pane-title">{{ title }}</span>
       <button
         v-if="!isCollapsed"
@@ -639,7 +642,10 @@ defineExpose({
         +
       </button>
     </div>
-    <div v-if="!isCollapsed" class="pane-content">
+    <div
+      v-if="!isCollapsed"
+      class="pane-content"
+    >
       <slot />
     </div>
   </div>

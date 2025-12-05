@@ -56,7 +56,40 @@
  * ```
  */
 
-// Components
+/**
+ * ## Vue Components
+ *
+ * ### Core Chart Components
+ * @component LightweightChart - Main chart container with REST/WebSocket support
+ * @component ChartPane - Multi-pane layout component for advanced dashboards
+ *
+ * ### UI Primitives
+ * @component Legend - Interactive legend showing series values
+ * @component RangeSwitcher - Quick time range selection (1D, 1W, 1M, etc.)
+ *
+ * ### Series Components (Type-Specific)
+ * Use these for Vue-idiomatic series declaration:
+ * @component Series - Generic series component (type prop: 'line', 'area', etc.)
+ * @component LineSeries - Line chart series
+ * @component AreaSeries - Area chart series
+ * @component CandlestickSeries - OHLC candlestick series
+ * @component BarSeries - OHLC bar series
+ * @component HistogramSeries - Histogram series
+ * @component BaselineSeries - Baseline series with fill
+ *
+ * ### Custom Series (from @lightweight-charts-pro/core)
+ * @component BandSeries - Upper/lower band indicator (Bollinger, etc.)
+ * @component RibbonSeries - Multi-line ribbon (EMA fans, etc.)
+ * @component SignalSeries - Buy/sell signal markers
+ * @component TrendFillSeries - Trend-based fill zones
+ * @component GradientRibbonSeries - Gradient-filled ribbon
+ *
+ * ### Series Features (Nested Components)
+ * @component Marker - Time-based markers (arrows, shapes)
+ * @component PriceLine - Horizontal price level lines
+ * @component Trade - Trade entry/exit visualization
+ * @component Annotation - Text/shape annotations on chart
+ */
 export {
   // Main chart components
   LightweightChart,
@@ -84,7 +117,29 @@ export {
   Annotation,
 } from "./components";
 
-// Composables
+/**
+ * ## Vue Composables
+ *
+ * ### For Advanced/Custom Integration
+ * These composables are used internally by components but can be used directly
+ * for advanced use cases:
+ *
+ * @composable useChartApi - REST API client for manual data loading
+ * - Provides: `getSeriesData()`, `setSeriesData()`, `getHistory()`
+ * - Use when: Building custom data loading logic outside components
+ *
+ * @composable useChartWebSocket - WebSocket client for real-time data
+ * - Provides: `connect()`, `disconnect()`, event handlers
+ * - Use when: Custom WebSocket integration or multiple connections
+ *
+ * @composable useLazyLoading - Infinite scroll pagination for time-series
+ * - Provides: `isLoading`, `syncBounds()`, history request coordination
+ * - Use when: Building custom scrollable chart implementations
+ *
+ * @composable useSeries - Series lifecycle management
+ * - Provides: Series creation, data updates, cleanup
+ * - Use when: Building custom series components
+ */
 export {
   useChartApi,
   useChartWebSocket,
@@ -98,10 +153,46 @@ export {
   type UseSeriesOptions,
 } from "./composables";
 
-// Re-export useful core utilities
+/**
+ * ## Core Utilities
+ *
+ * @class TimeRange - Time range helper for range switcher (from core package)
+ * @type RangeConfig - Configuration for time range buttons
+ */
 export { TimeRange, type RangeConfig } from "@lightweight-charts-pro/core";
 
-// Types
+/**
+ * ## TypeScript Types
+ *
+ * ### Chart Configuration
+ * @type SeriesConfig - Series configuration (data, type, options, lazy loading)
+ * @type ChartOptions - Chart-level options (layout, scales, grid)
+ * @type PaneConfig - Multi-pane layout configuration
+ * @type LazyLoadingConfig - Infinite scroll pagination settings
+ *
+ * ### Data Types
+ * @type DataPoint - Time-series data point (OHLCV, line, histogram, etc.)
+ * @type ChunkInfo - Pagination metadata (start, end, count)
+ *
+ * ### REST API Types
+ * @type ChartData - Full chart state (series configs + options)
+ * @type SeriesDataResponse - Response from getSeriesData endpoint
+ * @type HistoryResponseMessage - Response from history request
+ * @type ApiError - Error response format
+ *
+ * ### WebSocket Types
+ * @type WebSocketConfig - WebSocket connection configuration
+ * @type WebSocketEventHandlers - Event handler callbacks
+ * @type IncomingMessage - Union of all WS messages from server
+ * @type OutgoingMessage - Union of all WS messages to server
+ * @type DataUpdateMessage - Real-time data update notification
+ * @type InitialDataResponseMessage - Initial data on connection
+ *
+ * ### Component Props/Emits
+ * @type ChartProps - LightweightChart component props
+ * @type ChartEmits - LightweightChart component emits
+ * @type ChartState - Internal chart state
+ */
 export type {
   // API types
   ChunkInfo,

@@ -20,7 +20,15 @@ import {
   type ExtendedSeriesApi,
   type ExtendedSeriesConfig,
   logger,
+  type TradeConfig,
+  type TradeVisualizationOptions,
+  type Annotation,
 } from "@lightweight-charts-pro/core";
+import type {
+  CreatePriceLineOptions,
+  SeriesMarker,
+  Time,
+} from "lightweight-charts";
 import type { DataPoint } from "../types";
 import { normalizeDataPoints, normalizeTime } from "../utils/time";
 
@@ -30,11 +38,11 @@ export interface UseSeriesOptions {
   seriesId?: string;
   paneId?: number;
   options?: Record<string, unknown>;
-  priceLines?: any[];
-  markers?: any[];
-  trades?: any[];
-  tradeVisualizationOptions?: any;
-  annotations?: any[];
+  priceLines?: CreatePriceLineOptions[];
+  markers?: SeriesMarker<Time>[];
+  trades?: TradeConfig[];
+  tradeVisualizationOptions?: TradeVisualizationOptions;
+  annotations?: Annotation[];
 }
 
 export function useSeries(props: UseSeriesOptions) {

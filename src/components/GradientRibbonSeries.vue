@@ -1,5 +1,8 @@
 <template>
-  <Series type="gradientribbon" v-bind="seriesProps">
+  <Series
+    type="gradientribbon"
+    v-bind="seriesProps"
+  >
     <slot />
   </Series>
 </template>
@@ -7,6 +10,12 @@
 <script setup lang="ts">
 import Series from "./Series.vue";
 import type { DataPoint } from "../types";
+import type { Annotation } from "@lightweight-charts-pro/core";
+import type {
+  CreatePriceLineOptions,
+  SeriesMarker,
+  Time,
+} from "lightweight-charts";
 import { computed } from "vue";
 
 interface Props {
@@ -16,9 +25,9 @@ interface Props {
   topColor?: string;
   bottomColor?: string;
   lineWidth?: number;
-  priceLines?: any[];
-  markers?: any[];
-  annotations?: any[];
+  priceLines?: CreatePriceLineOptions[];
+  markers?: SeriesMarker<Time>[];
+  annotations?: Annotation[];
 }
 
 const props = defineProps<Props>();
