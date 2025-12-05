@@ -957,6 +957,16 @@ watch(
   { deep: true }
 );
 
+// Watch for series identity changes (symbol switches, dataset replacements)
+watch(
+  () => props.series,
+  () => {
+    // Reset auto-fit flag when series array identity changes (e.g., symbol switch)
+    // This allows fitContent to trigger again for the new dataset
+    initialFitDone = false;
+  }
+);
+
 // Lifecycle hooks
 onMounted(() => {
   initializeChart();
