@@ -1,8 +1,25 @@
 # Vue Lightweight Charts Pro - Comprehensive Code Review
 
-**Date:** December 2024  
+**Date:** December 2024 (Updated)  
 **Reviewer:** Code Analysis Agent  
 **Scope:** Vue 3 frontend for automated quantitative factor discovery and formula generator
+
+---
+
+## Executive Summary
+
+This code review reflects the **current state** of the codebase after recent improvements. Several high-priority issues have been addressed, and the codebase now demonstrates **production-grade quality** for quant frontend applications.
+
+### ✅ Issues Already Resolved
+
+The following issues from the previous review have been **fixed**:
+
+1. **WebSocket Direction Race Condition** - `pendingHistoryRequests` changed from `Set` to `Map<string, 'before' | 'after'>` to store direction with each request
+2. **Deep Watcher Allocation** - Now uses string fingerprints instead of object arrays for mutation detection
+3. **Undocumented Public API** - Comprehensive JSDoc added to `src/index.ts` documenting all 24+ components and 4 composables
+4. **Weak Typing (`any[]` props)** - All series components now use proper types: `SeriesMarker<Time>[]`, `CreatePriceLineOptions[]`, `TradeConfig[]`, etc.
+5. **Missing Error Boundaries** - Added `onErrorCaptured` in `LightweightChart.vue` to catch child component errors gracefully
+6. **ResizeObserver Documentation** - Added comments explaining single observer pattern to prevent proliferation
 
 ---
 
@@ -11,122 +28,72 @@
 ### ✅ Strengths
 
 **Time-Series Handling:**
-- **Timestamp normalization** is well-implemented in `src/utils/time.ts` - handles millisecond/second conversion, string parsing, and BusinessDay objects
-- The `normalizeDataPoints()` function validates for NaN/undefined values, preventing corrupt data from rendering
+- **Timestamp normalization** is robust in `src/utils/time.ts` - handles millisecond/second conversion, string parsing, and BusinessDay objects
+- `normalizeDataPoints()` validates for NaN/undefined values, preventing corrupt data from rendering
 - History merge in `mergeHistoryData()` properly deduplicates and sorts data by time
+- **Monotonic append detection** correctly identifies real-time data streams for O(m) fast path
 
 **Data Flow:**
 - Clear separation between REST API (`useChartApi.ts`) and WebSocket (`useChartWebSocket.ts`) composables
-- Lazy loading state is properly tracked with `pendingHistoryRequests` Set to prevent duplicate requests
-- The `seriesConfigs` ref maintains authoritative state for all series data
+- **Race condition prevention**: `pendingHistoryRequests` Map stores both request key AND direction
+- `seriesConfigs` ref maintains authoritative state for all series data
+- WebSocket incremental updates avoid full REST refetch
 
 **Error Handling:**
 - WebSocket message validation (`isValidIncomingMessage`) prevents malformed payloads
 - API errors are properly extracted and surfaced via `error.value` reactive state
 - History merge failures are caught with proper cleanup of lazy-loading flags
+- **Error boundaries** via `onErrorCaptured` prevent child component crashes from taking down the entire chart
 
-### ⚠️ Issues Found
+### ⚠️ Remaining Issues
 
-#### Issue 1: Race Condition in WebSocket History Response
-**Location:** `LightweightChart.vue:279-318`  
-**Problem:** The `direction` in `onHistoryResponse` falls back to `response.direction || RequestDirection.Before`. If the server doesn't include `direction` in the response, concurrent before/after requests could be misattributed.
+#### Issue 1: Time Threshold Calculation for Gappy Data
+**Location:** `useLazyLoading.ts:415-437`  
+**Problem:** The `timeThreshold = loadThreshold * barSpacing` calculation assumes bars are evenly spaced. For gappy data (market holidays, weekends), this could trigger loading too early or too late.
 
-**Why it matters:** Could cause incorrect data merging direction, leading to duplicate or missing bars.
+**Why it matters:** For NIFTY50 data with weekend gaps, a 50-bar threshold at 1-minute spacing spans 50 minutes, but with gaps it might span 3+ days, causing premature loading.
 
-**Fix:**
+**Current mitigation:** The `averageBarSpacing` is calculated from actual data, which partially compensates. However, highly irregular data may still trigger edge cases.
+
+**Recommendation (Low Priority):** Consider adding a `maxTimeThreshold` cap:
 ```typescript
-// Store the direction when making the request
-const pendingHistoryRequests = new Map<string, 'before' | 'after'>();
-
-// In onHistoryResponse, look up the direction from pendingRequests
-const requestKey = `${namespacedId}_${paneId}`;
-const direction = pendingHistoryRequests.get(requestKey) || response.direction || 'before';
+const timeThreshold = Math.min(
+  loadThreshold * barSpacing,
+  7 * 24 * 60 * 60 // Cap at 7 days
+);
 ```
 
-#### Issue 2: Potential Off-by-One in Time Threshold Calculation
-**Location:** `useLazyLoading.ts:417-437`  
-**Problem:** The `timeThreshold` calculation assumes bars are evenly spaced: `loadThreshold * barSpacing`. For gappy data (e.g., market holidays), this could trigger loading too early or too late.
-
-**Why it matters:** For NIFTY50 data with weekend/holiday gaps, a 50-bar threshold might span 3+ days instead of ~1 hour, causing premature loading.
-
-**Fix (Low Priority):** Consider using logical bar index instead of time-based threshold:
-```typescript
-// Alternative: Count visible bars vs data bounds instead of time-based comparison
-const visibleBarCount = Math.floor((visibleToTime - visibleFromTime) / barSpacing);
-```
-
-#### Issue 3: Empty Dataset Edge Case
-**Location:** `LightweightChart.vue:409-428` (isEmptyState computed)  
-**Problem:** The `isEmptyState` logic checks `s.lazyLoading?.hasMoreBefore === undefined` to avoid false positives during initial load. However, if lazy loading is enabled but the initial response returns 0 bars AND `hasMoreBefore=false`, the empty state won't show.
-
-**Fix:**
-```typescript
-const isEmptyState = computed(() => {
-  if (!isInitialized.value || isLoadingData.value) return false;
-  
-  return seriesConfigs.value.every((s) => {
-    const hasNoData = !s.data?.length;
-    // If lazy loading is active and we haven't received a response yet, don't show empty
-    if (s.lazyLoading?.enabled && pendingHistoryRequests.size > 0) {
-      return false;
-    }
-    // Show empty only if truly no data and no more to load
-    const lazyLoadComplete = !s.lazyLoading?.hasMoreBefore && !s.lazyLoading?.hasMoreAfter;
-    return hasNoData && (lazyLoadComplete || !s.lazyLoading?.enabled);
-  });
-});
-```
-
-#### Issue 4: Symbol Switch Detection May Miss Edge Cases
-**Location:** `LightweightChart.vue:699-720`  
+#### Issue 2: Symbol Switch Detection Edge Case
+**Location:** `LightweightChart.vue:737-760`  
 **Problem:** The `timeRangeDisjoint` check (`firstNewTime > lastExistingTime`) assumes symbol changes have non-overlapping time ranges. A symbol switch to a stock with overlapping history could fail to trigger `setData()`.
 
-**Current workaround is adequate** (50% size shrink also triggers setData), but worth documenting.
+**Current mitigation:** The 50% size shrink check also triggers `setData()`, which handles most real-world symbol switches.
+
+**Status:** Documented edge case, current workaround is adequate.
+
+#### Issue 3: Empty Dataset Edge Case
+**Location:** `LightweightChart.vue:448-467`  
+**Problem:** If lazy loading is enabled and the initial response returns 0 bars with `hasMoreBefore=false` and `hasMoreAfter=false`, the empty state should show but the logic may not catch this.
+
+**Status:** Low priority - rare edge case in production.
 
 ---
 
 ## 2. Performance & Efficiency
 
-### ✅ Optimizations Already In Place
+### ✅ Optimizations In Place
 
-1. **Monotonic append fast path** (LightweightChart.vue:737-788) - O(m) instead of O(n log n) for real-time appends
-2. **WebSocket incremental updates** - Avoids REST refetch on data_update messages
+1. **Monotonic append fast path** (LightweightChart.vue:802-827) - O(m) instead of O(n log n) for real-time appends
+2. **WebSocket incremental updates** - Avoids REST refetch on `data_update` messages
 3. **Cached normalization** in `useSeries.ts` - Reuses normalized bars for unchanged historical data
-4. **Shallow watches** for series identity changes - Avoids deep watching large data arrays
+4. **String fingerprint watchers** - Reduced memory allocation overhead from object creation
 5. **Time/bounds caching** in `useLazyLoading.ts` - `minTime`/`maxTime` cached to avoid re-normalization on scroll
 6. **Average bar spacing calculation** - Dynamic threshold instead of hardcoded 60s assumption
+7. **Single ResizeObserver** - Documented pattern prevents observer proliferation
 
-### ⚠️ Performance Concerns
+### ⚠️ Remaining Performance Concerns
 
-#### Concern 1: Deep Watcher on Series Metadata
-**Location:** `LightweightChart.vue:1209-1255`  
-**Problem:** The mutation detection watcher creates a new array of metadata objects on every check:
-```typescript
-watch(
-  () => props.series.map((s) => ({
-    id: s.seriesId || s.name,
-    dataLength: s.data?.length || 0,
-    lastTime: s.data?.length ? s.data[s.data.length - 1]?.time : null,
-  })),
-  // ...
-  { deep: true }
-);
-```
-
-**Impact:** For 50 series with frequent updates, this creates 50 new objects per reactive tick.
-
-**Fix:** Use a stable computed property or WeakMap:
-```typescript
-const seriesMetadataRef = computed(() => 
-  props.series.map((s) => `${s.seriesId || s.name}:${s.data?.length}:${s.data?.[s.data.length-1]?.time}`)
-);
-
-watch(seriesMetadataRef, (newMeta, oldMeta) => {
-  // Compare string arrays instead of object arrays
-});
-```
-
-#### Concern 2: No Virtualization for Large Series Lists
+#### Concern 1: No Virtualization for Large Series Lists
 **Impact:** With 100+ series (multi-stock dashboards), all series components mount simultaneously.
 
 **Recommendation:** For multi-pane quant dashboards, consider:
@@ -134,31 +101,30 @@ watch(seriesMetadataRef, (newMeta, oldMeta) => {
 - Virtual scrolling for series selection lists
 - Deferred series creation for panes below the fold
 
-#### Concern 3: Full Re-normalization on Backfill
-**Location:** `useSeries.ts:246-276`  
-**Problem:** Backfill merges normalize entire existing dataset + new data:
+**Effort:** 2-3 days for comprehensive solution
+
+#### Concern 2: Full Re-normalization on Backfill
+**Location:** `useSeries.ts:260-284`  
+**Problem:** Backfill merges iterate over both existing and new data:
 ```typescript
-previousData.value.forEach((bar) => {
-  mergedMap.set(bar.time, bar);
-});
-normalizedData.forEach((bar) => {
-  mergedMap.set(bar.time, bar);
-});
+previousData.value.forEach((bar) => mergedMap.set(bar.time, bar));
+normalizedData.forEach((bar) => mergedMap.set(bar.time, bar));
 ```
 
 **Impact:** O(n+m) for every backfill even when existing data is already normalized.
 
-**Fix:** Since `previousData` is already normalized, skip redundant normalization:
+**Current state:** Partially optimized - `previousData` is already normalized, so we're only normalizing incoming data.
+
+**Recommendation:** Further optimize by pre-sorting incoming data and using binary search for merge:
 ```typescript
-// previousData is guaranteed normalized, so just merge directly
-previousData.value.forEach((bar) => mergedMap.set(bar.time, bar));
+// If incoming data is sorted and all timestamps < existing min time
+// Just prepend without full Map creation
+if (isBackfillSorted && newLastTime < existingFirstTime) {
+  mergedData = [...normalizedData, ...previousData.value];
+}
 ```
 
-#### Concern 4: ResizeObserver on Every Pane
-**Location:** `LightweightChart.vue:1415-1418`  
-**Potential Issue:** Each ChartPane could also have resize observers. With 10+ panes, this creates many observers.
-
-**Recommendation:** Use a single observer on the container with element-specific handling.
+**Effort:** 2-4 hours
 
 ---
 
@@ -174,25 +140,33 @@ previousData.value.forEach((bar) => mergedMap.set(bar.time, bar));
 
 2. **Unified series factory:** `createSeriesWithConfig` from `@lightweight-charts-pro/core` handles all series types consistently
 
-3. **Type safety:** Strong TypeScript interfaces for `SeriesConfig`, `DataPoint`, `ChartOptions`, etc.
+3. **Strong TypeScript types:**
+   - `SeriesConfig`, `DataPoint`, `ChartOptions` properly typed
+   - Series components use `SeriesMarker<Time>[]`, `CreatePriceLineOptions[]`, `TradeConfig[]`
+   - No more `any[]` in component props
 
 4. **Vue 3 best practices:**
    - `shallowRef` for chart/seriesMap to avoid deep reactivity on library objects
    - `triggerRef` for manual Map mutation notifications
    - Proper `provide/inject` for parent-child chart communication
+   - `onErrorCaptured` for error boundaries
 
-### ⚠️ Design Issues
+5. **Comprehensive API documentation:**
+   - `src/index.ts` has JSDoc for all 24+ components
+   - 4 composables fully documented with usage examples
+   - 30+ types categorized and documented
 
-#### Issue 1: God Component (LightweightChart.vue ~1600 lines)
-**Problem:** Single file handles:
-- Chart lifecycle
-- Series management
+### ⚠️ Remaining Design Issues
+
+#### Issue 1: God Component (LightweightChart.vue ~1660 lines)
+**Problem:** Single file handles multiple concerns:
+- Chart lifecycle (creation, resize, events)
+- Series management (create, remove, update)
 - WebSocket integration
 - REST API integration
 - Lazy loading coordination
 - Legend/RangeSwitcher primitives
 - Annotation processing
-- Resize handling
 
 **Recommendation:** Extract into focused composables:
 ```
@@ -204,82 +178,65 @@ LightweightChart.vue (300 lines - orchestration only)
 │   └── usePrimitives.ts     - Legends, range switchers
 ```
 
-#### Issue 2: Tight Coupling Between LightweightChart and useLazyLoading
-**Location:** `LightweightChart.vue:340-394`  
-**Problem:** The component directly handles lazy loading callbacks and state management instead of delegating fully to the composable.
+**Effort:** 2-3 days
 
-**Fix:** Move `pendingHistoryRequests` tracking into `useLazyLoading`:
+#### Issue 2: Tight Coupling Between LightweightChart and useLazyLoading
+**Location:** `LightweightChart.vue:356-411`  
+**Problem:** The component directly manages `pendingHistoryRequests` Map and coordinates lazy loading callbacks.
+
+**Current state:** Functional but harder to test in isolation.
+
+**Recommendation:** Move pending request tracking fully into `useLazyLoading`:
 ```typescript
-// useLazyLoading.ts
-export function useLazyLoading(options: {
-  onRequestHistory: (...) => void | Promise<void>;  // Make async-aware
-  onHistoryLoaded: (...) => void;
-}) {
-  // Internal tracking of pending requests
+export function useLazyLoading(options) {
   const pendingRequests = ref(new Map<string, 'before' | 'after'>());
   
-  // Expose method for component to call when data arrives
-  function completeRequest(seriesId: string, direction: 'before' | 'after', ...);
+  function startRequest(seriesId: string, direction: 'before' | 'after') {
+    pendingRequests.value.set(`${seriesId}_${direction}`, direction);
+  }
+  
+  function completeRequest(seriesId: string, direction: 'before' | 'after') {
+    pendingRequests.value.delete(`${seriesId}_${direction}`);
+  }
 }
 ```
 
-#### Issue 3: Inconsistent Props/Options Typing
-**Location:** Various series components  
-**Problem:** `Props` interface uses `any[]` for markers, priceLines, trades:
-```typescript
-priceLines?: any[];
-markers?: any[];
-trades?: any[];
-```
-
-**Fix:** Use proper types from `@lightweight-charts-pro/core`:
-```typescript
-import type { SeriesMarker, PriceLineOptions, TradeConfig } from "@lightweight-charts-pro/core";
-
-priceLines?: PriceLineOptions[];
-markers?: SeriesMarker<Time>[];
-trades?: TradeConfig[];
-```
-
-#### Issue 4: Missing Error Boundaries
-**Problem:** Component-level errors in nested series/markers could crash the entire chart.
-
-**Recommendation:** Add error boundaries:
-```vue
-<!-- In LightweightChart.vue template -->
-<ErrorBoundary @error="handleSeriesError">
-  <slot />
-</ErrorBoundary>
-```
+**Effort:** 4-6 hours
 
 ---
 
 ## 4. Usability & Applicability
 
-### For Quant Developers
+### ✅ For Quant Developers
 
-#### ✅ Easy Integration Points:
+**Easy Integration Points:**
 1. **Config-driven series:** Pass `series` prop with data, type, options
 2. **WebSocket real-time:** Set `wsUrl` and `autoConnect` props
 3. **Lazy loading:** Automatic with `lazyLoading.enabled: true` on series config
 4. **Multiple panes:** Use `ChartPane` components with `paneId`
+5. **Trade visualization:** Built-in support via `trades` and `tradeVisualizationOptions` props
+6. **Strong typing:** All props are properly typed for IDE autocomplete
 
-#### ⚠️ Pain Points:
+**Comprehensive API Surface:**
+- 24+ components exported
+- 4 composables for advanced use cases
+- 30+ types for domain entities
+- JSDoc documentation in `src/index.ts`
+
+### ⚠️ Remaining Pain Points
 
 **1. Adding New Indicator Types**
-- Need to update `SeriesConfig.seriesType` union type
 - Core package update required for actual rendering
-- No plugin system for custom indicators
+- No plugin system for runtime indicator registration
 
 **Recommendation:** Add indicator registry:
 ```typescript
-// src/plugins/indicators.ts
 export const indicatorRegistry = new Map<string, IndicatorFactory>();
-
 export function registerIndicator(name: string, factory: IndicatorFactory) {
   indicatorRegistry.set(name, factory);
 }
 ```
+**Effort:** 1 day
 
 **2. Backtest Results Display**
 - No dedicated components for PnL curves, drawdown charts, trade tables
@@ -293,6 +250,7 @@ src/components/quant/
 ├── PerformanceMetrics.vue - Sharpe, Sortino, max drawdown cards
 └── SignalTable.vue        - Factor scores with time alignment
 ```
+**Effort:** 3-5 days
 
 **3. Multi-Symbol Dashboards**
 - Each symbol requires separate `LightweightChart` instance
@@ -301,111 +259,73 @@ src/components/quant/
 **Recommendation:** Add dashboard layout component:
 ```vue
 <ChartDashboard :layout="{ rows: 2, cols: 3 }">
-  <ChartCell v-for="symbol in symbols" :key="symbol" :row="..." :col="...">
+  <ChartCell v-for="symbol in symbols" :key="symbol">
     <LightweightChart :chart-id="symbol" ... />
   </ChartCell>
 </ChartDashboard>
 ```
-
-### For Future Maintainers
-
-#### ✅ Debugging-Friendly:
-1. `logger` from core package provides structured logging
-2. Dev-mode warnings for in-place mutations
-3. Clear error messages with context (series ID, pane ID)
-
-#### ⚠️ Discoverability Issues:
-
-**1. Public API Not Obvious**
-- `defineExpose` on components isn't documented
-- Which composables are meant for external use unclear
-
-**Recommendation:** Add API documentation:
-```typescript
-// src/index.ts
-
-/**
- * Public API - Use these in your Vue components
- */
-export {
-  LightweightChart,  // Main chart component
-  ChartPane,         // For multi-pane layouts
-  Series,            // Generic series
-  // ... type-specific series
-} from './components';
-
-export {
-  useChartApi,       // REST API composable (for manual data loading)
-  useLazyLoading,    // Pagination composable (advanced usage)
-} from './composables';
-
-// Types for props/emits
-export type { ChartProps, SeriesConfig, DataPoint } from './types';
-```
-
-**2. Folder Structure Could Be Clearer**
-```
-src/
-├── components/
-│   ├── chart/           # Chart-level components
-│   │   ├── LightweightChart.vue
-│   │   └── ChartPane.vue
-│   ├── series/          # Series components
-│   │   ├── Series.vue
-│   │   ├── CandlestickSeries.vue
-│   │   └── ...
-│   └── overlays/        # Markers, price lines, annotations
-│       ├── Marker.vue
-│       └── PriceLine.vue
-├── composables/
-│   ├── core/            # Internal composables
-│   └── public/          # Meant for external use
-└── types/
-    ├── api.ts
-    ├── chart.ts
-    └── index.ts         # Re-exports with JSDoc
-```
+**Effort:** 2 days
 
 ---
 
 ## 5. Prioritized Recommendations
 
-### High Impact
+### Completed ✅
+
+| # | Issue | Status |
+|---|-------|--------|
+| 1 | WebSocket direction race condition | ✅ Fixed - Map stores direction |
+| 2 | Deep watcher allocation | ✅ Fixed - String fingerprints |
+| 3 | Undocumented public API | ✅ Fixed - Comprehensive JSDoc |
+| 4 | Weak typing (`any[]` props) | ✅ Fixed - Proper types throughout |
+| 5 | No error boundaries | ✅ Fixed - `onErrorCaptured` added |
+| 6 | ResizeObserver proliferation | ✅ Documented - Single observer pattern |
+
+### High Impact (Remaining)
 
 | # | Issue | Recommendation | Effort |
 |---|-------|---------------|--------|
-| 1 | God component (~1600 lines) | Extract `useChartCore`, `useSeriesManager`, `useChartData` composables | 2-3 days |
-| 2 | Weak typing (`any[]` props) | Add proper types for markers, priceLines, trades | 0.5 day |
-| 3 | No error boundaries | Add `<ErrorBoundary>` wrapper around slots | 0.5 day |
-| 4 | Missing quant components | Add PnL curve, trade table, metrics components | 3-5 days |
+| 7 | God component (~1660 lines) | Extract `useChartCore`, `useSeriesManager`, `useChartData` composables | 2-3 days |
+| 8 | Missing quant components | Add PnL curve, trade table, metrics components | 3-5 days |
 
-### Medium Impact
+### Medium Impact (Remaining)
 
 | # | Issue | Recommendation | Effort |
 |---|-------|---------------|--------|
-| 5 | Deep watcher allocation | Use computed string arrays instead of object arrays | 2 hours |
-| 6 | Backfill re-normalization | Skip normalization for already-normalized `previousData` | 1 hour |
-| 7 | Undocumented public API | Add JSDoc to exports in `src/index.ts` | 2 hours |
-| 8 | WebSocket direction race condition | Store direction with pending request | 2 hours |
+| 9 | Tight coupling (lazy loading) | Move pending request tracking into composable | 4-6 hours |
+| 10 | Backfill optimization | Pre-sort and binary search merge | 2-4 hours |
 
 ### Low Impact / Nice-to-Have
 
 | # | Issue | Recommendation | Effort |
 |---|-------|---------------|--------|
-| 9 | No indicator plugin system | Add `registerIndicator()` registry | 1 day |
-| 10 | No dashboard layout | Add `<ChartDashboard>` grid component | 2 days |
-| 11 | Multiple ResizeObservers | Consolidate to single observer | 0.5 day |
-| 12 | Empty state edge case | Improve `isEmptyState` logic | 1 hour |
+| 11 | No indicator plugin system | Add `registerIndicator()` registry | 1 day |
+| 12 | No dashboard layout | Add `<ChartDashboard>` grid component | 2 days |
+| 13 | No virtualization | Add virtual scrolling for 100+ series | 2-3 days |
+| 14 | Time threshold edge case | Add `maxTimeThreshold` cap | 30 min |
 
 ---
 
 ## Summary
 
-The codebase demonstrates **solid Vue 3 patterns** and **production-ready performance optimizations**. The main areas for improvement are:
+The codebase demonstrates **excellent Vue 3 patterns** and is now **production-ready** for moderate to large-scale quant frontends. Key improvements since last review:
 
-1. **Decomposition** - Split LightweightChart.vue into focused composables
-2. **Type safety** - Replace `any[]` with proper interfaces
-3. **Quant-specific features** - Add dedicated components for backtest visualization
-4. **Documentation** - Clarify public API boundaries
+### Recent Improvements
+- ✅ Race conditions in WebSocket history handling eliminated
+- ✅ Memory allocation optimized in watchers
+- ✅ Full TypeScript type safety across all components
+- ✅ Error boundaries prevent cascading failures
+- ✅ Comprehensive API documentation
 
-The existing bug fixes (documented in `VUE_LIGHTWEIGHT_CHARTS_PRO_BUGFIXES.md`) have addressed critical issues with WebSocket connections, lazy loading, and data normalization. The codebase is **production-ready for moderate-scale deployments** with the caveats noted in `PRODUCTION_READINESS_REPORT.md`.
+### Remaining Work
+1. **Component decomposition** - Split LightweightChart.vue into focused composables (2-3 days)
+2. **Quant-specific components** - Add PnL curves, trade tables, metrics (3-5 days)
+3. **Minor optimizations** - Backfill merge, lazy loading decoupling (1 day total)
+
+### Production Readiness
+- **Data integrity**: Robust time normalization, deduplication, and sorting
+- **Performance**: O(m) real-time updates, cached bounds, optimized watchers
+- **Reliability**: Error boundaries, WebSocket reconnection, graceful degradation
+- **Maintainability**: Strong typing, JSDoc documentation, Vue 3 best practices
+
+The codebase is ready for **production deployment** with the understanding that the God component issue should be addressed in a future refactor for long-term maintainability.
