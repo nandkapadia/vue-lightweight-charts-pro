@@ -566,7 +566,24 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
         isMonotonicAppend = firstNewTime >= lastExistingTime;
       }
 
-      if (isMonotonicAppend) {
+      // VALIDATION: Verify incoming data is sorted before taking fast path
+      // If data is unsorted, fall back to slow path to avoid dropping bars
+      let isIncomingDataSorted = true;
+      if (isMonotonicAppend && normalizedData.length > 1) {
+        for (let i = 1; i < normalizedData.length; i++) {
+          if (normalizedData[i].time < normalizedData[i - 1].time) {
+            isIncomingDataSorted = false;
+            if (import.meta.env.DEV) {
+              console.warn(
+                `[LightweightChart] Incoming data for series "${seriesId}" is not sorted. Falling back to slow path.`
+              );
+            }
+            break;
+          }
+        }
+      }
+
+      if (isMonotonicAppend && isIncomingDataSorted) {
         // FAST PATH: Monotonic append - O(m) instead of O(n log n)
         const lastExistingTime = existingData[existingData.length - 1].time;
 
@@ -589,7 +606,7 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
           seriesConfigs.value[configIndex].data = [...existingData, ...newBars];
         }
       } else {
-        // SLOW PATH: Non-monotonic update - use full merge logic
+        // SLOW PATH: Non-monotonic update - use optimized merge logic
         const existingTimes = new Set(existingData.map((d) => d.time));
 
         // Find new bars (not in existing data)
@@ -613,27 +630,54 @@ function updateSeriesData(seriesId: string, data: DataPoint[], isInitialLoad = f
         // CRITICAL: Merge new bars into existing array to preserve history for lazy loading
         // Don't overwrite with just the new payload - this would lose all prior history
         if (configIndex >= 0) {
-          // Build time-to-bar map for deduplication (newer bars overwrite older)
-          const mergedMap = new Map<number | string, DataPoint>();
+          // OPTIMIZATION: Check if we can avoid expensive merge + sort
+          // Case 1: No new bars - just update existing (common for last bar tick updates)
+          if (newBars.length === 0) {
+            // No merge needed, existing data is already correct
+            // Just update the last bar if it changed (already done above with series.update)
+            if (existingData.length > 0 && normalizedData.length > 0) {
+              const lastExistingTime = existingData[existingData.length - 1].time;
+              const updatedLastBar = normalizedData.find((bar) => bar.time === lastExistingTime);
+              if (updatedLastBar) {
+                // Update the last bar in the config array
+                existingData[existingData.length - 1] = updatedLastBar;
+              }
+            }
+          } else {
+            // Case 2: Small number of new bars - check if they're all after existing
+            const lastExistingTime = existingData.length > 0 ? existingData[existingData.length - 1].time : -Infinity;
+            const allNewBarsAfterExisting = newBars.every((bar) => bar.time > lastExistingTime);
 
-          // Add existing bars
-          existingData.forEach((bar) => {
-            mergedMap.set(bar.time, bar);
-          });
+            if (allNewBarsAfterExisting) {
+              // OPTIMIZATION: Simple append, no merge or sort needed
+              // This handles the case where incoming data has both old and new bars,
+              // but the new bars are all after existing (e.g., backfill + new ticks)
+              seriesConfigs.value[configIndex].data = [...existingData, ...newBars];
+            } else {
+              // Case 3: True non-monotonic merge - need full merge and sort
+              // Build time-to-bar map for deduplication (newer bars overwrite older)
+              const mergedMap = new Map<number | string, DataPoint>();
 
-          // Add/overwrite with new bars (newer data wins)
-          normalizedData.forEach((bar) => {
-            mergedMap.set(bar.time, bar);
-          });
+              // Add existing bars
+              existingData.forEach((bar) => {
+                mergedMap.set(bar.time, bar);
+              });
 
-          // Convert back to sorted array
-          const mergedData = Array.from(mergedMap.values()).sort((a, b) => {
-            const timeA = typeof a.time === 'string' ? new Date(a.time).getTime() / 1000 : a.time;
-            const timeB = typeof b.time === 'string' ? new Date(b.time).getTime() / 1000 : b.time;
-            return timeA - timeB;
-          });
+              // Add/overwrite with new bars (newer data wins)
+              normalizedData.forEach((bar) => {
+                mergedMap.set(bar.time, bar);
+              });
 
-          seriesConfigs.value[configIndex].data = mergedData;
+              // Convert back to sorted array
+              const mergedData = Array.from(mergedMap.values()).sort((a, b) => {
+                const timeA = typeof a.time === 'string' ? new Date(a.time).getTime() / 1000 : a.time;
+                const timeB = typeof b.time === 'string' ? new Date(b.time).getTime() / 1000 : b.time;
+                return timeA - timeB;
+              });
+
+              seriesConfigs.value[configIndex].data = mergedData;
+            }
+          }
         }
       }
     }
