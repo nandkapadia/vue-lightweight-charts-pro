@@ -213,6 +213,22 @@ const ws = props.wsUrl
           const requestKey = `${response.seriesId}_${response.paneId || 0}_${direction}`;
           pendingHistoryRequests.delete(requestKey);
 
+          // Check for server-side errors in history response
+          if (response.error) {
+            const errorMsg = `History request failed for series "${response.seriesId}": ${response.error}`;
+            error.value = errorMsg;
+            emit('error', new Error(errorMsg));
+
+            // Stop lazy-loading for this series (no more data available due to error)
+            lazyLoadingState?.handleHistoryResponse(
+              response.seriesId,
+              direction,
+              false, // No more data before
+              false  // No more data after
+            );
+            return;
+          }
+
           if (response.data?.length) {
             mergeHistoryData(response.seriesId, response.data, direction);
           }
@@ -709,24 +725,38 @@ function mergeHistoryData(
   );
   if (configIndex < 0) return;
 
-  const config = seriesConfigs.value[configIndex];
-  const existingData = normalizeDataPoints(config.data || []);
-  const incomingData = normalizeDataPoints(newData || []);
+  try {
+    const config = seriesConfigs.value[configIndex];
+    // OPTIMIZATION: config.data is already normalized (set via updateSeriesData)
+    // Only normalize incoming data to avoid O(n) re-normalization of full dataset
+    const existingData = config.data || [];
+    const incomingData = normalizeDataPoints(newData || []);
 
-  const merged = direction === RequestDirection.Before
-    ? [...incomingData, ...existingData]
-    : [...existingData, ...incomingData];
+    const merged = direction === RequestDirection.Before
+      ? [...incomingData, ...existingData]
+      : [...existingData, ...incomingData];
 
-  // Deduplicate by time (later entries win)
-  const deduplicated = Array.from(
-    new Map(merged.map((point) => [point.time, point])).values()
-  );
+    // Deduplicate by time (later entries win)
+    const deduplicated = Array.from(
+      new Map(merged.map((point) => [point.time, point])).values()
+    );
 
-  deduplicated.sort((a, b) => a.time - b.time);
+    deduplicated.sort((a, b) => a.time - b.time);
 
-  // Don't trigger auto-fit on history merges (only on initial load)
-  // Data is already normalized, so skip re-normalization (performance optimization)
-  updateSeriesData(seriesId, deduplicated, false, true);
+    // Don't trigger auto-fit on history merges (only on initial load)
+    // Data is already normalized, so skip re-normalization (performance optimization)
+    updateSeriesData(seriesId, deduplicated, false, true);
+  } catch (err) {
+    // Critical: catch normalization errors to prevent leaving chart in broken state
+    const errorMessage = err instanceof Error ? err.message : 'Failed to merge history data';
+    error.value = errorMessage;
+    emit('error', new Error(`History merge failed for series "${seriesId}": ${errorMessage}`));
+
+    // Clear pending lazy-load flags to prevent infinite loading state
+    lazyLoadingState?.handleHistoryResponse(seriesId, direction, false, false);
+
+    console.error(`[LightweightChart] History merge error for series "${seriesId}":`, err);
+  }
 }
 
 /**
