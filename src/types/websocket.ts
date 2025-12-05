@@ -128,6 +128,12 @@ export interface DataUpdateMessage extends BaseMessage {
   seriesId: string;
   /** Number of data points */
   count: number;
+  /**
+   * Optional incremental data payload.
+   * If present, apply these bars directly instead of refetching via REST.
+   * This prevents full dataset downloads on every tick for high-frequency streams.
+   */
+  data?: any[];
 }
 
 /**

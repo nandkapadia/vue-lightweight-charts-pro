@@ -224,8 +224,15 @@ const ws = props.wsUrl
           );
         },
         onDataUpdate: async (update) => {
-          // Refetch series data on update notification
-          await refreshSeriesData(update.paneId, update.seriesId);
+          // OPTIMIZATION: Use incremental data from WebSocket if available
+          // instead of refetching entire dataset via REST
+          if (update.data && Array.isArray(update.data) && update.data.length > 0) {
+            // Apply incremental update directly - O(m) instead of full refetch
+            updateSeriesData(update.seriesId, update.data);
+          } else {
+            // Fallback: refetch via REST if no data in message (backward compatibility)
+            await refreshSeriesData(update.paneId, update.seriesId);
+          }
         },
       }
     )
