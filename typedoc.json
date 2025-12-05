@@ -1,0 +1,16 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "./src/types/index.ts",
+    "./src/composables/index.ts",
+    "./src/utils/index.ts"
+  ],
+  "out": "./docs/api/generated",
+  "plugin": ["typedoc-plugin-markdown"],
+  "readme": "none",
+  "name": "Vue Lightweight Charts Pro API",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "hideGenerator": true,
+  "skipErrorChecking": true
+}
