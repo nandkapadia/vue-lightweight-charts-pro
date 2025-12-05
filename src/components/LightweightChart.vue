@@ -683,7 +683,24 @@ function initializeSeries(shouldAutoFit = false): void {
 function initializeLegends(): void {
   if (!chart.value || !props.legends.length) return;
 
-  // Clear existing legends (primitives clean up automatically when chart is removed)
+  // Detach existing legends before clearing to prevent duplicates
+  if (legendPrimitives.length > 0 && chart.value) {
+    const panes = (chart.value as any).panes?.() || [];
+    legendPrimitives.forEach(primitive => {
+      try {
+        // Try to detach from all panes
+        panes.forEach((pane: any) => {
+          if (typeof pane.detachPrimitive === 'function') {
+            pane.detachPrimitive(primitive);
+          }
+        });
+      } catch (err) {
+        // Ignore errors during detachment
+      }
+    });
+  }
+
+  // Clear existing legends
   legendPrimitives.length = 0;
 
   // Create legends from config
@@ -723,7 +740,24 @@ function initializeLegends(): void {
 function initializeRangeSwitchers(): void {
   if (!chart.value || !props.rangeSwitchers.length) return;
 
-  // Clear existing range switchers (primitives clean up automatically when chart is removed)
+  // Detach existing range switchers before clearing to prevent duplicates
+  if (rangeSwitcherPrimitives.length > 0 && chart.value) {
+    const panes = (chart.value as any).panes?.() || [];
+    rangeSwitcherPrimitives.forEach(primitive => {
+      try {
+        // Try to detach from all panes
+        panes.forEach((pane: any) => {
+          if (typeof pane.detachPrimitive === 'function') {
+            pane.detachPrimitive(primitive);
+          }
+        });
+      } catch (err) {
+        // Ignore errors during detachment
+      }
+    });
+  }
+
+  // Clear existing range switchers
   rangeSwitcherPrimitives.length = 0;
 
   // Create range switchers from config
